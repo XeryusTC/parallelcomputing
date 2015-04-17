@@ -2,6 +2,8 @@
 
 \usepackage{enumerate}
 \usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{xfrac}
 
 \title{Assignment 1}
 \author{Jacco Spoelder (s1348493) \and Xeryus Stokkel (s2332795)}
@@ -13,12 +15,45 @@
 \section{Top 500 list}
 
 \section{Speedup}
-\begin{enumerate}[\textbf{(a)}]
-	\item Speed up is the decrease in time required to solve a problem when using multiple parallel processors. It is defined as $S(p) = \frac{T_1}{T_p}$ where $T_1$ is the time required to solve the problem on a single processor and $T_p$ is the time required to solve the problem on $p$ processors.
-	\item
+\begin{enumerate}[(a)]
+	\item Speed up is the decrease in time required to solve a problem when using multiple parallel processors. It is defined as
+		\begin{equation}
+			S(p) = \frac{t_1}{t_p} \label{eqn:base}
+		\end{equation}
+		where $t_1$ is the time required to solve the problem on a single processor and $t_p$ is the time required to solve the problem on $p$ processors.
+	\item Any program can be split up in a part that can be parallised ($t_\text{par}(1)$) and a part which can not ($t_\text{seq}(1)$). We can then define $t_1$ and $t_p$ as follows:
+		\begin{align*}
+			t_1 &= t_\text{seq}(1) + t_\text{par}(1) \\
+			t_p &= t_\text{seq}(1) + \frac{t_\text{par}(1)}{p}
+		\end{align*}
+		This can be combined with the \autoref{eqn:base} to form:
 		\begin{align}
-			T_1 &= T_\text{seq} + T_{par}
+			S(p) &= \frac{t_\text{seq}(1) + t_\text{par}(1)}{t_\text{seq}(1) + \frac{t_\text{par}(1)}{p}} \nonumber \\
+			S(p) &= \frac{\frac{t_\text{seq}(1)}{t_\text{par}(1)} + 1}{\frac{t_\text{seq}(1)}{t_\text{par}(1)} + \frac{1}{p}} \label{eqn:step2}
 		\end{align}
+		\autoref{eqn:step2} contains the ratio $\displaystyle \frac{t_\text{seq}(1)}{t_\text{par}(1)}$, of which we can take the inverse to get the desired ratio $\displaystyle x = \frac{t_\text{par}(1)}{t_\text{seq}(1)}$ so we can rewrite it as follows:
+		\begin{align*}
+			S(p) &= \frac{x^{-1} + 1}{x^{-1} + p^{-1}}
+		\end{align*}
+	\item To get the value of the ratio $x$ we need to solve the following:
+		\begin{align*}
+			200 &= \frac{x^{-1} + 1}{x^{-1} + 300^{-1}} \\
+			200 (x^{-1} + 300^{-1}) &= x^{-1} + 1 \\
+			200 x^{-1} + \sfrac{2}{3} &= x^{-1} + 1 \\
+			199 x^{-1} &= \sfrac{1}{3} \\
+			x^{-1} &\approx \sfrac{1}{600} \\
+			x &\approx 600
+		\end{align*}
+	\item Since $S(p) \approx x$ for $p \gg x$ the maximum speed-up is 600. For example we could use $10^9$ processors: $\displaystyle S(10^9) = \frac{600^{-1} + 1}{600^{-1} + (10^9)^{-1}} \approx 601$, as we can see the speed-up with such a large number of processors is still only 600.
+	\item To achieve half of the maximum speed up we would need to solve $S(p) = 300$:
+		\begin{align*}
+			300 &= \frac{600^{-1} + 1}{600^{-1} + p^{-1}} \\
+			300 (600^{-1} + p^{-1}) &= 600^{-1} + 1 \\
+			\frac{300}{p} + \frac{1}{2} &= 600^{-1} + 1 \\
+			\frac{300}{p} &= \frac{1}{2} + 600^{-1} \\
+			p &\approx 600
+		\end{align*}
+		So about 600 processors are needed to get half of the maximum speed-up.
 \end{enumerate}
 
 \section{Amdahl's and Gustafson's law}
