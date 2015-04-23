@@ -59,5 +59,12 @@ The high efficiency and total computing power of the SANAM system is acquired th
 \end{enumerate}
 
 \section{Amdahl's and Gustafson's law}
+Amdahl's law states that the maximal achievable speed-up is proportional to the parts of the program that cannot be made parallel. Or in other words: the sequential part of the program limits the achievable speed-up. Amdahl's law can be expressed as follows: $S(n) = B + \frac{1 - B}{n}$ where $B$ is the fraction of the program that cannot be parallelized and $n$ is the number of processors.
+
+The law is related to the law of diminishing returns in economics. This law states that the more you invest in improving something, the smaller the effect of an additional investment would be. The same is true for Amdahl's law, if you already have a number of processors then adding extra processors will not give an equal amount of speed-up. So doubling the amount of processors doesn't double the speed-up.
+
+Amdahl's law only describes speed-up in terms of the parallelizable part of a program and the amount of processors that can be used. It does not take thing like memory or other possible bottlenecks into account. The law also only works when datasets do not increase, so the total amount of work stays the same while the number of processors does change.
+
+\url{http://www.futurechips.org/thoughts-for-researchers/parallel-programming-gene-amdahl-said.html}
 
 \end{document}
