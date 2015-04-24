@@ -63,6 +63,13 @@ The structure of the SANAM supercomputer is based on GPU`s. It has 256 server mo
 \end{enumerate}
 
 \section{Amdahl's and Gustafson's law}
+Amdahl's law states that the maximal achievable speed-up is proportional to the parts of the program that cannot be made parallel. Or in other words: the sequential part of the program limits the achievable speed-up. Amdahl's law can be expressed as follows: $S(n) = B + \frac{1 - B}{n}$ where $B$ is the fraction of the program that cannot be parallelized and $n$ is the number of processors.
+
+The law is related to the law of diminishing returns in economics. This law states that the more you invest in improving something, the smaller the effect of an additional investment would be. The same is true for Amdahl's law, if you already have a number of processors then adding extra processors will not give an equal amount of speed-up. So doubling the amount of processors doesn't double the speed-up.
+
+Amdahl's law only describes speed-up in terms of the parallelizable part of a program and the amount of processors that can be used. It does not take thing like memory or other possible bottlenecks into account. The law also only works when datasets do not increase, so the total amount of work stays the same while the number of processors does change.
+
+
 \subsection{Gustafson`s law}
 Compared to Amdahl`s law, which assumes a fixed problem size, Gustafson`s law approaches the parallelization speed-up differently. Amdahl states that the serial portion of the problem does not change iwth an increasing number of processors, so the total speed-up is limited strongly by this serial part, despite the speed-up of the parallel part.
 Gustafson law or approach states that with an increasing number of processors, the relative parallel part of the problem also increases. This being especially so with scientific types of problems. If more processors are available, the users tend to increase the computational load. Therefore, the speedup scales far better with the problem size. This is illustrated in figure 1:
@@ -72,11 +79,9 @@ Gustafson law or approach states that with an increasing number of processors, t
 \caption{Comparison between Amdahl`s law and Gustafson`s law woth increased problem size. Adapted from Gustafson, 1988.}
 \end{figure}
 
-
-
-
-
 \section{References}
+
+\url{http://www.futurechips.org/thoughts-for-researchers/parallel-programming-gene-amdahl-said.html}
 
 An Energy-Efficient Multi-GPU Supercomputer
 
