@@ -43,32 +43,32 @@ The structure of the SANAM supercomputer is based on GPU`s. It has 256 server mo
 		\end{align*}
 	\item To get the value of the ratio $x$ we need to solve the following:
 		\begin{align*}
-			200 &= \frac{x^{-1} + 1}{x^{-1} + 300^{-1}} \\
-			200 (x^{-1} + 300^{-1}) &= x^{-1} + 1 \\
-			200 x^{-1} + \sfrac{2}{3} &= x^{-1} + 1 \\
+			\frac{x^{-1} + 1}{x^{-1} + 300^{-1}} &= 200 \\
+			x^{-1} + 1 & = 200 (x^{-1} + 300^{-1}) \\
+			x^{-1} + 1 &= 200 x^{-1} + \sfrac{2}{3} \\
 			199 x^{-1} &= \sfrac{1}{3} \\
-			x^{-1} &\approx \sfrac{1}{600} \\
-			x &\approx 600
+			x^{-1} &\approx \sfrac{1}{597} \\
+			x &\approx 597
 		\end{align*}
-	\item Since $S(p) \approx x$ for $p \gg x$ the maximum speed-up is 600. For example we could use $10^9$ processors: $\displaystyle S(10^9) = \frac{600^{-1} + 1}{600^{-1} + (10^9)^{-1}} \approx 601$, as we can see the speed-up with such a large number of processors is still only 600.
+	\item Since $S(p) \approx x$ for $p \gg x$ the maximum speed-up is about 600. For example we could use $10^9$ processors: $\displaystyle S(10^9) = \frac{597^{-1} + 1}{597^{-1} + (10^9)^{-1}} \approx 598$, as we can see the speed-up with such a large number of processors is still a bit shy of 600.
 	\item To achieve half of the maximum speed up we would need to solve $S(p) = 300$:
 		\begin{align*}
-			300 &= \frac{600^{-1} + 1}{600^{-1} + p^{-1}} \\
-			300 (600^{-1} + p^{-1}) &= 600^{-1} + 1 \\
-			\frac{300}{p} + \frac{1}{2} &= 600^{-1} + 1 \\
-			\frac{300}{p} &= \frac{1}{2} + 600^{-1} \\
-			p &\approx 600
+			\frac{597^{-1} + 1}{597^{-1} + p^{-1}} &= 300 \\
+			300 (597^{-1} + p^{-1}) &= 597^{-1} + 1 \\
+			\frac{300}{p} + \frac{1}{2} &= 597^{-1} + 1 \\
+			\frac{300}{p} &= \frac{1}{2} + 597^{-1} \\
+			p &\approx 598
 		\end{align*}
-		So about 600 processors are needed to get half of the maximum speed-up.
+		So 598 processors are needed to get half of the maximum speed-up. This is about the same as the ratio $x$, this means that when there is a processor for each parallelizable part and one extra for the sequential part that about half of the theoretical maximum speed-up can be achieved.
 \end{enumerate}
 
 \section{Amdahl's and Gustafson's law}
+\subsection{Amdahl's law}
 Amdahl's law states that the maximal achievable speed-up is proportional to the parts of the program that cannot be made parallel. Or in other words: the sequential part of the program limits the achievable speed-up. Amdahl's law can be expressed as follows: $S(n) = B + \frac{1 - B}{n}$ where $B$ is the fraction of the program that cannot be parallelized and $n$ is the number of processors.
 
 The law is related to the law of diminishing returns in economics. This law states that the more you invest in improving something, the smaller the effect of an additional investment would be. The same is true for Amdahl's law, if you already have a number of processors then adding extra processors will not give an equal amount of speed-up. So doubling the amount of processors doesn't double the speed-up.
 
 Amdahl's law only describes speed-up in terms of the parallelizable part of a program and the amount of processors that can be used. It does not take thing like memory or other possible bottlenecks into account. The law also only works when datasets do not increase, so the total amount of work stays the same while the number of processors does change.
-
 
 \subsection{Gustafson`s law}
 Compared to Amdahl`s law, which assumes a fixed problem size, Gustafson`s law approaches the parallelization speed-up differently. Amdahl states that the serial portion of the problem does not change iwth an increasing number of processors, so the total speed-up is limited strongly by this serial part, despite the speed-up of the parallel part.
@@ -81,8 +81,6 @@ Gustafson law or approach states that with an increasing number of processors, t
 
 \section{References}
 
-\url{http://www.futurechips.org/thoughts-for-researchers/parallel-programming-gene-amdahl-said.html}
-
 An Energy-Efficient Multi-GPU Supercomputer
 
 David Rohr,Sebastian Kalcher, Matthias Bach, Abdulqadir A. Alaqeeli, Hani M. Alzaid, Dominic Eschweiler
@@ -93,4 +91,8 @@ Frankfurt Institute for Advanced Studies Ruth-Moufang-Str. 1, Frankfurt am Main,
 King Abdulaziz City for Science and Technology Riyadh, 11442, Kingdom of Saudi Arabia
 \\
 Reevaluating Aamdahl’s law. John L. Gustafson. Communications of the acm may 1088, volume 31 number 5
+
+
+\url{http://www.futurechips.org/thoughts-for-researchers/parallel-programming-gene-amdahl-said.html}
+\url{https://en.wikipedia.org/wiki/Amdahl's_law}
 \end{document}
