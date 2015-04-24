@@ -16,6 +16,10 @@
 The end of (one of) our student numbers is 93. At the 93th positon in the current high performance computer top 500 list, as of November 2014, is the SANAM Supercomputer, located in Saudi Arabia. It appeared first in the top 500 list at the end of 2012. It was built by and hosted in the King Abdulaziz City for Science and Technology(KACST) in cooperation with Frankfurt Institute for Advanced Studies(FIAS). At the time it was completed, it ranked the worlds second most efficient supercomputer, based on the performance/energy use ratio. This efficiency is expressed as the computing power in floating point operation per second(FLOPS) per watt of energy used. The SANAM supercomputer is able to do 2,351.10 mega FLOPS per watt. Nowadays it is ranked number 23. The most efficient supercomputer at this moment, the GSI Helmholtz Center based L-CSC, performs 5,271.81 mega FLOPS per watt, more than twice as efficient. At the time of completion the SANAM placed at position 52 in the top 500 supercomputer list, while, as said, it now has position 93. 
 \\
 The high efficiency and total computing power of the SANAM system is acquired through the use of many general purpose graphic processing units(GPGPU) instead of only central processing units(CPU).
+\subsection{Structure}
+The structure of the SANAM supercomputer is based on GPU`s. It has 256 server modules, each module consisting of 2 Xeon E5−2650 (2.0 GHz) CPU`s and 2 AMD FirePro S10000 GPU`s. The Xeon E5−2650 CPU`s each have 8 hyperthreading enabled cores and the FirePro S10000 GPU`s have two GPU cores each. Each module harbours 128 GiB DDR3-DRAM of main memory. Benchmarking and testing shows that, for feeding the GPU`s of the system, the 8-core Intel CPU is more efficient than a 6-core CPU with higher clock frequency and comparable performance(Rorh et al 2014).
+
+
 \section{Speedup}
 \begin{enumerate}[(a)]
 	\item Speed up is the decrease in time required to solve a problem when using multiple parallel processors. It is defined as
@@ -59,5 +63,29 @@ The high efficiency and total computing power of the SANAM system is acquired th
 \end{enumerate}
 
 \section{Amdahl's and Gustafson's law}
+\subsection{Gustafson`s law}
+Compared to Amdahl`s law, which assumes a fixed problem size, Gustafson`s law approaches the parallelization speed-up differently. Amdahl states that the serial portion of the problem does not change iwth an increasing number of processors, so the total speed-up is limited strongly by this serial part, despite the speed-up of the parallel part.
+Gustafson law or approach states that with an increasing number of processors, the relative parallel part of the problem also increases. This being especially so with scientific types of problems. If more processors are available, the users tend to increase the computational load. Therefore, the speedup scales far better with the problem size. This is illustrated in figure 1:
 
+\begin{figure}[-ht]
+\includegraphics[width=\textwidth]{Law}
+\caption{Comparison between Amdahl`s law and Gustafson`s law woth increased problem size. Adapted from Gustafson, 1988.}
+\end{figure}
+
+
+
+
+
+\section{References}
+
+An Energy-Efficient Multi-GPU Supercomputer
+
+David Rohr,Sebastian Kalcher, Matthias Bach, Abdulqadir A. Alaqeeli, Hani M. Alzaid, Dominic Eschweiler
+Volker Lindenstruth, Sakhar B. Alkhereyf, Ahmad Alharthi, Abdulelah Almubarak, Ibraheem Alqwaiz, and Riman Bin Suliman 
+
+Frankfurt Institute for Advanced Studies Ruth-Moufang-Str. 1, Frankfurt am Main,Germany.
+
+King Abdulaziz City for Science and Technology Riyadh, 11442, Kingdom of Saudi Arabia
+\\
+Reevaluating Aamdahl’s law. John L. Gustafson. Communications of the acm may 1088, volume 31 number 5
 \end{document}
