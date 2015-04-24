@@ -3,6 +3,7 @@
 \usepackage{enumerate}
 \usepackage{hyperref}
 \usepackage[all]{hypcap}
+\usepackage{listings}
 
 \title{Assignment 1}
 \author{Jacco Spoelder (s1348493) \and Xeryus Stokkel (s2332795)}
@@ -11,11 +12,142 @@
 
 \maketitle
 
+\section{Exercise 1}
 \begin{enumerate}[(a)]
 	\item The "Hello world!" lines are interleaved because the statements in the first block are executed in parallel. This means that both threads will simultaneously execute the \texttt{printf("Hello ");} statement so you see that appearing twice. They will then execute the \texttt{printf("world!\textbackslash n");} statements in parallel which means that this is printed twice in a row. Because it happens in parallel the lines will be interleaved. We were not able to reproduce this interleaved effect on our own systems.
 	
 	The line "Have a nice day!" is not interleaved because only a single printf statement is executed in parallel, this simply comes down to executing this statement twice.
-	\item 
+	\item The output is the following:
+		\begin{lstlisting}
+Hello world!
+Have a nice day!
+Hello world!
+Have a nice day!
+Have fun!
+		\end{lstlisting}
+		As we can see, everything in the first parallel block is executed twice. However the second pragma statement has no effect, the line "Have a nice day!" is only printed twice just like the other printf statement in the first block. This means that OpenMP doesn't support nesting or that it needs to be enabled explicitly.
+	\item The output when the environment variable \texttt{OMP\_NESTING} is enabled is:
+		\begin{lstlisting}
+Hello world!
+Hello world!
+Have a nice day!
+Have a nice day!
+Have a nice day!
+Have a nice day!
+Have fun!
+		\end{lstlisting}
+		As we can see the line "Have a nice day!" is printed four times. We have 2 threads executing the main parallel block, so that means printing the line twice. But we also have a nested pragma that wants to execute the print statement in parallel. This means that the statement is executed an additional 2 times per already existing thread. So in total we get $2 \times 2 = 4$ total outputs. In general we can say that with N threads that the entire block will be executed N times and the nested pragma will be executed N times for each already existing block, so in general the amount of printed "Have a nice day!" statements will be $N \times N = N^2$.
 \end{enumerate}
+
+\section{Exercise 2}
+\begin{enumerate}[(a)]
+	\item We predict that the output of the program will look like below. \texttt{undefined} means that we do not know the output as the variable is not initialised before printing.
+		\begin{lstlisting}
+#i=31415
+i=undefined
+i=undefined
+i=undefined
+i=undefined
+#i=31415
+i=31415
+i=31415
+i=31415
+i=31415
+#i=31415
+i=31415
+i=31416
+i=31417
+i=31418
+#i=31419
+		\end{lstlisting}
+		The compiler warns us about using \texttt{i} uninitialised in the first parallel block. The output was:
+		\begin{lstlisting}
+#i=31415
+ i=0
+ i=32734
+ i=0
+ i=0
+#i=31415
+ i=31415
+ i=31415
+ i=31415
+ i=31415
+#i=31415
+ i=31415
+ i=31417
+ i=31416
+ i=31418
+#i=31419
+		\end{lstlisting}
+		As we can see our prediction was correct, the value of the first parallel section was indeed undefined: 0 and 32734 both occur without an indication of why because \texttt{i} was undefined. We also see that when the variable is shared that the value is affected across threads and that it also affects the value of the variable in the main thread.
+	\setcounter{enumi}{0}
+	\item When executing sequential the program will simply do the following $N$ times:
+		\begin{enumerate}[1.]
+			\item Set the value of $x$ to 1.
+			\item Increment $x$ to 2.
+			\item Multiply $x$ by 3 to obtain 6.
+			\item Increment the element with index 6 in the histogram by one.
+		\end{enumerate}
+		This means that the resulting histogram will be \texttt{\{0 0 0 0 0 0 1000000 0 0 0\}}.
+		
+		After executing the program this has been shown to indeed be the case.
+	\item The possibilities of what happens with 2 threads are the following:
+		\begin{itemize}
+			\item The same as with one thread.
+			\item The same as with one thread but step 2 and 3 reversed, so $x = 1 \cdot 3 + 1 = 4$.
+			\item Step 2 is skipped so the result is $x = 3$.
+			\item Step 3 is skipped so the result is $x = 2$.
+		\end{itemize}
+		So the possibilities for the value of $x$ are 2, 3, 4 and 6.
+	\item With \texttt{OMP\_NUM\_THREADS} = 2 the output is not consistent but the order of magnitudes of the numbers is always the same:
+	\begin{lstlisting}
+0: 0
+1: 0
+2: 62
+3: 1363
+4: 16
+5: 0
+6: 998559
+7: 0
+8: 0
+9: 0
+	\end{lstlisting}
+	As we can see our prediction of the values of $x$ was correct. We can also see that most of the time the code executes correctly. The largest error occurs where the second section overwrites the first section. This is most likely because the calculations are done on a temporary variable $y$. Both sections will retrieve the value of $x$ and store them in $y$ and then do their calculations on this variable. Section one will then write the value of $y$ to $x$. Section 2 will then also do the same, but because it used the original value of $x$ it will overwrite the results of the first section.
+	
+	Similar events occur for the case where $x = 2$. For the case where $x=4$ the sections do not overwrite each other but section 2 finishes before section 1 starts and thus the calculation is done the wrong way around.
+	
+	For 24 threads the following happens (note that we ran this on a laptop with only 4 cores available):
+	\begin{lstlisting}
+0: 0
+1: 0
+2: 186
+3: 565
+4: 183
+5: 0
+6: 999066
+7: 0
+8: 0
+9: 0
+	\end{lstlisting}
+	The results are very similar. We think this is because only two threads actually do any work and 22 are sitting around and idling. This means that the results are the same for 2 threads. It is very likely that the program takes a lot longer because of the overhead of creating and destroying 24 threads for every iteration of the for loop.
+	\item The results for this program are shown in \autoref{tbl:shared}. It clearly shows that the execution time for the reductive part goes down when the number of threads goes up. For the shared part the execution time increases quite dramatically!
+	
+	Reduction executes the code in parallel and adds the results together after all the threads finish. The shared variable code updates the results in every iteration, so all the threads compete for the same variable which results in large waiting times. Reduction can increase its speed because there is only a slowdown at the end where all the results are added together. The overhead of adding the variables together is also only minimal, with 8 threads only 8 sums need to be added together so the overhead is minimal compared to total number of calculations (100 million).
+	
+	Shared code needs to wait these 100 million calculations to update. Whenever a thread updates the other threads need to wait for this process to be completed. This means that with 4 threads that there can be a queue of up to 3 threads idling because they need to wait for the shared variable to be released. With 8 threads the queue increases to a maximum of 7, this means that a lot more idling is done and no calculations are done in that time. So the program is spending most of the time waiting to update instead of doing the calculations. This is especially noticeable with this program where the calculation is really simple so updating the value in memory takes a relatively long time.
+\end{enumerate}
+
+\begin{table}
+	\centering
+	\caption{Timings of the reduction and the shared part of the program}
+	\label{tbl:shared}
+	\begin{tabular}{r|l|l}
+		Threads & Reduction & Shared \\ \hline
+		1 & 0.389616 & 1.895604 \\
+		2 & 0.195814 & 16.035956 \\
+		4 & 0.149522 & 35.542965 \\
+		8 & 0.102292 & 72.173635
+	\end{tabular}
+\end{table}
 
 \end{document}
