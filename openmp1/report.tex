@@ -1,0 +1,21 @@
+\documentclass[a4paper]{article}
+
+\usepackage{enumerate}
+\usepackage{hyperref}
+\usepackage[all]{hypcap}
+
+\title{Assignment 1}
+\author{Jacco Spoelder (s1348493) \and Xeryus Stokkel (s2332795)}
+
+\begin{document}
+
+\maketitle
+
+\begin{enumerate}[(a)]
+	\item The "Hello world!" lines are interleaved because the statements in the first block are executed in parallel. This means that both threads will simultaneously execute the \texttt{printf("Hello ");} statement so you see that appearing twice. They will then execute the \texttt{printf("world!\textbackslash n");} statements in parallel which means that this is printed twice in a row. Because it happens in parallel the lines will be interleaved. We were not able to reproduce this interleaved effect on our own systems.
+	
+	The line "Have a nice day!" is not interleaved because only a single printf statement is executed in parallel, this simply comes down to executing this statement twice.
+	\item 
+\end{enumerate}
+
+\end{document}
