@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <omp.h>
+#include <string.h>
 
 #define real float
 
@@ -23,6 +24,8 @@ static void showVector (size_t n, real *vec);
 static void decomposeLUP(size_t n, real **A, size_t *P);
 static void LUPsolve(size_t n, real **LU, size_t *P, real *x, real *b);
 static void solve(size_t n, real **A, real *x, real *b);
+static void invert(size_t n, real**A);
+static real** multiply(size_t n, real **A, real **B);
 /********************/
 
 void *safeMalloc(size_t n)
@@ -200,10 +203,73 @@ void solve(size_t n, real **A, real *x, real *b)
     free(P);
 }
 
+void invert(size_t n, real **A)
+{
+    int i, k;
+    real **Ainv, *b;
+    size_t *P;
+
+    Ainv = allocMatrix(n, n);
+    P = safeMalloc(n*sizeof(size_t));
+    b = allocVector(n);
+    /* Start by constructing a LUP decomposition */
+    decomposeLUP(n, A, P);
+    /* Invert matrix by solving for each column of the identity matrix */
+    #pragma omp parallel for if (n>1000)
+    for (i=0; i<n; ++i)
+        b[i] = 0;
+
+    #pragma omp parallel for firstprivate(b)
+    for (k=0; k<n; ++k)
+    {
+        for (i=0; i<k; ++i)
+            b[i] = 0;
+        b[k] = 1;
+        LUPsolve(n, A, P, Ainv[k], b);
+    }
+
+    #pragma omp parallel for private(i,k) schedule(static,1)
+    for (i=0; i<n; ++i)
+    {
+        for (k=0; k<n; ++k)
+            A[i][k] = Ainv[k][i];
+    }
+
+    freeMatrix(Ainv);
+    freeVector(b);
+    free(P);
+}
+
+real** multiply(size_t n, real **A, real **B)
+{
+    int i, j, k;
+    real **C, s;
+
+    C = allocMatrix(n, n);
+
+    #pragma omp parallel for private(i,j,k,s) schedule(static, 8)
+    for (i=0; i<n; ++i)
+    {
+        #pragma omp parallel for private(j,k,s) schedule(static, 1)
+        for (j=0; j<n; ++j)
+        {
+            s = 0;
+            #pragma omp parallel for reduction(+:s)
+            for (k=0; k<n; ++k)
+            {
+                s += A[i][k] * B[k][j];
+            }
+            C[i][j] = s;
+        }
+    }
+    showMatrix(3, C);
+    return C;
+}
+
 int main(int argc, char **argv)
 {
     int n, i, j;
-    real **A, *x, *b;
+    real **A, **B, *x, *b;
 
     if (argc == 2) {
         n = atoi(argv[1]);
@@ -236,13 +302,23 @@ int main(int argc, char **argv)
         b[1] = 4;
         b[2] = 16;
     }
+    B = allocMatrix(n, n);
+    for (i=0; i<n; ++i)
+        for (j=0; j<n; ++j)
+            B[i][j] = A[i][j];
 
-    showMatrix (3, A);
+    showMatrix(3, A);
     printf ("\n");
 
-    solve(n, A, x, b);
+    /*solve(n, A, x, b);
 
-    showVector(3, x);
+    showVector(3, x);*/
+    invert(n, A);
+    showMatrix(3, B);
+    showMatrix(3, A);
+    printf("\n");
+
+    multiply(n, A, B);
 
     freeMatrix(A);
     freeVector(x);
