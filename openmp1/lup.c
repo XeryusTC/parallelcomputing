@@ -106,11 +106,11 @@ void decomposeLUP(size_t n, real **A, size_t *P)
         P[i] = i;
     }
 
-    #pragma omp parallel for private(h,i,j,k,row,pivot,absval,tmp) schedule(static,1)
+    //#pragma omp parallel for private(h,i,j,k,row,pivot,absval,tmp) schedule(static,1)
     for (k=0; k<n-1; ++k)
     {
         row = -1;
-        pivot = -1;
+        pivot = 0;
 
         for (i=k; i<n; ++i)
         {
@@ -135,7 +135,7 @@ void decomposeLUP(size_t n, real **A, size_t *P)
         P[row] = h;
 
         /* swap rows */
-        //#pragma omp parallel for private(tmp,i) if (n>100)
+        #pragma omp parallel for private(tmp,i) if (n>100)
         for (i=0; i<n; ++i)
         {
             tmp = A[k][i];
@@ -143,6 +143,7 @@ void decomposeLUP(size_t n, real **A, size_t *P)
             A[row][i] = tmp;
         }
 
+        #pragma omp parallel for private(i,j)
         for (i=k+1; i<n; ++i)
         {
             A[i][k] /= A[k][k];
@@ -161,7 +162,6 @@ void LUPsolve(size_t n, real **LU, size_t *P, real *x, real *b)
 
     /* Solve Ly=Pb using forward substitution */
     y = x;  /* warning, y is an alias for x! It is safe, though. */
-    #pragma omp parallel for private(i,j,s)
     for (i=0; i<n; ++i)
     {
         s = 0;
@@ -212,21 +212,22 @@ void invert(size_t n, real **A)
 
     Ainv = allocMatrix(n, n);
     P = safeMalloc(n*sizeof(size_t));
-    b = allocVector(n);
     /* Start by constructing a LUP decomposition */
     decomposeLUP(n, A, P);
     /* Invert matrix by solving for each column of the identity matrix */
-    #pragma omp parallel for if (n>1000)
-    for (i=0; i<n; ++i)
-        b[i] = 0;
 
-    #pragma omp parallel for firstprivate(b)
+    #pragma omp parallel private(b)
+    {
+    b = allocVector(n);
+    #pragma omp for
     for (k=0; k<n; ++k)
     {
-        if (k != 0)
-            b[k-1] = 0;
+        for (i=0; i<n; ++i)
+            b[i] = 0;
         b[k] = 1;
         LUPsolve(n, A, P, Ainv[k], b);
+    }
+    freeVector(b);
     }
 
     #pragma omp parallel for private(i,k) schedule(static,1)
@@ -237,7 +238,7 @@ void invert(size_t n, real **A)
     }
 
     freeMatrix(Ainv);
-    freeVector(b);
+    //freeVector(b);
     free(P);
 }
 
@@ -263,7 +264,6 @@ real** multiply(size_t n, real **A, real **B)
             C[i][j] = s;
         }
     }
-    showMatrix(3, C);
     return C;
 }
 
@@ -323,7 +323,7 @@ int main(int argc, char **argv)
     showMatrix(3, A);
     printf("\n");
 
-    multiply(n, A, B);
+    showMatrix(10, multiply(n, A, B));
 #endif
 
     freeMatrix(A);
