@@ -161,6 +161,7 @@ void LUPsolve(size_t n, real **LU, size_t *P, real *x, real *b)
 
     /* Solve Ly=Pb using forward substitution */
     y = x;  /* warning, y is an alias for x! It is safe, though. */
+    #pragma omp parallel for private(i,j,s)
     for (i=0; i<n; ++i)
     {
         s = 0;
@@ -222,8 +223,8 @@ void invert(size_t n, real **A)
     #pragma omp parallel for firstprivate(b)
     for (k=0; k<n; ++k)
     {
-        for (i=0; i<k; ++i)
-            b[i] = 0;
+        if (k != 0)
+            b[k-1] = 0;
         b[k] = 1;
         LUPsolve(n, A, P, Ainv[k], b);
     }
@@ -247,7 +248,7 @@ real** multiply(size_t n, real **A, real **B)
 
     C = allocMatrix(n, n);
 
-    #pragma omp parallel for private(i,j,k,s) schedule(static, 8)
+    #pragma omp parallel for private(i,j,k,s) schedule(static, 1)
     for (i=0; i<n; ++i)
     {
         #pragma omp parallel for private(j,k,s) schedule(static, 1)
@@ -277,15 +278,15 @@ int main(int argc, char **argv)
         x = allocVector(n);
         b = allocVector(n);
 
+        #pragma omp parallel for private(i,j) schedule(static, 1)
         for(i=0; i<n; ++i) {
             b[i] = 1;
+            #pragma omp parallel for private(j) schedule(static, 1)
             for (j=0; j<n; ++j) {
                 if (i == j)
                     A[i][j] = -2;
-                else if (ABS(i-j) == 1)
-                    A[i][j] = 1;
                 else
-                    A[i][j] = 0;
+                    A[i][j] = (ABS(i-j) == 1);
             }
         }
     } else {
@@ -302,23 +303,28 @@ int main(int argc, char **argv)
         b[1] = 4;
         b[2] = 16;
     }
+#ifdef INVERT
     B = allocMatrix(n, n);
     for (i=0; i<n; ++i)
         for (j=0; j<n; ++j)
             B[i][j] = A[i][j];
+#endif
 
     showMatrix(3, A);
     printf ("\n");
 
-    /*solve(n, A, x, b);
+#ifndef INVERT
+    solve(n, A, x, b);
 
-    showVector(3, x);*/
+    showVector(3, x);
+#else
     invert(n, A);
     showMatrix(3, B);
     showMatrix(3, A);
     printf("\n");
 
     multiply(n, A, B);
+#endif
 
     freeMatrix(A);
     freeVector(x);
