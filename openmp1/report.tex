@@ -152,4 +152,61 @@ i=31418
 	\end{tabular}
 \end{table}
 
+\section{Computing $\pi$}
+
+\section{LUP decomposition}
+\begin{enumerate}[(a)]
+	\item \autoref{tbl:lup} shows a comparison of run times for the LUP decomposition and solving for $Ax=b$ for various matrix sizes. The first row (sequential) is the original code that has been edited to be able to generate matrices to allow for different matrix sizes. The other rows refer to the parallel code running with different numbers of threads. For this question we can compare the first two rows.
+	
+	As we can see from these rows it shows that the sequential code is a bit faster than the parallel code running with a single thread for a $1000 \times 1000$ matrix. This is caused by the parallel code having extra overhead to create and manage additional threads even though there is only one. This causes enough of a slow down to cause the program to run for almost one additional second.
+	
+	The run time for the $5000 \times 5000$ problem was so long for both the sequential and parallel code that we quit the program after running for 5 minutes.
+	
+	\item This is where the meat of the parallelisation comes from. When we look at \autopageref{tbl:lup} again we can see that the run time of the program decreases drastically when we increase the number of threads that the program uses. When the thread count is doubled the run time is almost cut in half so it seems that the problem does parallelize quite well.
+	
+	There is a change in the trend when we use 12 threads though. The run time increases by a lot for most of the problem sizes to the point where it takes longer to run than with a single thread. This is not true for a problem size of $5000 \times 5000$. The nodes in the cluster support just 12 threads so the slow down might be caused by the CPU being stressed so much that there is not enough time to communicate between threads or threads having to wait for each other for some other reason. Some parts of the parallel algorithm do not take a very long time to run in the first place and having so many threads might add additional overhead.
+
+	\item To invert the matrix we can change the problem from $Ax=b$ to $AX=I$ where $I$ is the identity matrix. We can do this with the infrastructure that is already in place where we solve $Ax_i = I_i$ for each column $i$ in $X$ and $I$. This means that to invert a $n \times n$ matrix we need to do a single LUP decomposition and then solve using the decomposition $n$ times, $X$ will then hold the inverse of $A$.
+	
+	Run times for the code are shown in \autoref{tbl:invert}, the run time also includes the parallel multiplication routine. We also included using 10 threads to investigate why 12 threads has longer run times than lower thread counts. We removed the $5000 \times 5000$ problem because the time to complete that problem took longer than 5 minutes no matter the amount of threads used.
+	
+	We can see that the trend in \autoref{tbl:invert} is the same as in \autoref{tbl:lup}, when the number of threads is doubled then the run time is nearly cut in half. The only exception to this are 10 and 12 threads. Both of these show a slowdown for $n=10, n=100$, this slowdown is most likely caused by the overhead of creating and managing the respective number of threads while the amount of work doesn't justify that amount of threads. This means that more time is spend on managing the work instead of on doing the actual work. With 10 threads the amount of work to do for $n=1000$ is still sufficient to have a speed up but with 12 threads there is still too much overhead to see a speed up.
+	
+	\item We also included the run times for this routine in \autoref{tbl:invert}. The results of the routine aren't always very accurate, we do not obtain a proper identity matrix. Instead we obtain something which is almost an identity matrix, its main diagonal contains only ones or numbers that differ from 1 in the 6th decimal place. Other places in the matrix contain 0 or numbers that are very close to 0. This is most likely caused by rounding errors in floating point numbers.
+\end{enumerate}
+
+\begin{table}
+	\centering
+	\caption{Time needed for the LUP decomposition, empty fields are aborted runs because they took longer than 5 minutes.}
+	\label{tbl:lup}
+	\begin{tabular}{r|r|r|r|r}
+		& \multicolumn{4}{c}{Time (s)} \\
+		$n$ & 10 & 100 & 1000 & 5000 \\ \hline
+		Thread count \\ \cline{2-5}
+		Sequential & 0.00  & 0.01 & 3.57 & \\
+		 1 & 0.00 & 0.01 & 4.48 &  \\
+		 2 & 0.00 & 0.01 & 2.32 & 4:57.29 \\
+		 4 & 0.00 & 0.01 & 1.25 & 2:28.00 \\
+		 8 & 0.00 & 0.01 & 0.66 & 1:13.56 \\
+		12 & 0.05 & 0.46 & 6.49 & 49.23 \\
+	\end{tabular}
+\end{table}
+
+\begin{table}
+	\centering
+	\caption{Time needed to invert a matrix}
+	\label{tbl:invert}
+	\begin{tabular}{r|r|r|r}
+		& \multicolumn{3}{c}{Time (s)} \\
+		$n$ & 10 & 100 & 1000 \\ \hline
+		Thread count \\ \cline{2-4}
+		 1 & 0.00 & 0.06 & 30.02 \\
+		 2 & 0.00 & 0.04 & 15.57 \\
+		 4 & 0.00 & 0.04 & 7.95 \\
+		 8 & 0.01 & 0.03 & 4.16 \\
+		10 & 0.03 & 0.06 & 3.61 \\
+		12 & 0.04 & 0.03 & 6.14 \\
+	\end{tabular}
+\end{table}
+
 \end{document}
