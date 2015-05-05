@@ -153,6 +153,57 @@ i=31418
 \end{table}
 
 \section{Computing $\pi$}
+\begin{enumerate}[(a)]
+	\item The function which computes each chunk of $N$ is suited for parallelization. It is a for-loop, and each time the same variable $sum$ is updated. Especially with increasing sizes of $N$, the overhead of parallelization will be less. We can use a reduction clause here to divide the work equally. $sum$ will is divided into four local copies and added together after the loop.
+	
+	To count the number of flops, we need to know how many floating point operations are done in the for loop for every iteration of $N$. This is the total number of floating point operations. Divided by the time it takes to run this, gives the operations per second for the whole system. If multiple threads are used, we need to account for the number of threads if we want the flops performance per thread(assuming each threads has the same performance, which often is not the case).
+	
+	The number of floating operation inside the for-loop is 10, when counting multiplication, addition, dividing and casting as one flop and assuming no compiler optimizations. 
+	
+	\item The program is run with different sizes of $N$ and different amounts of threads, see \autoref{tbl:pi} and \autoref{tbl:piflops}.
+	It is run on a two-core system of 3,4Ghz.
+
+\end{enumerate}
+\newpage
+	
+	\begin{table}
+		\centering
+		\caption{Time needed to approximate pi with different $N$.}
+		\label{tbl:pi}
+		\begin{tabular}{r|r|r|r|r|r}
+			& \multicolumn{4}{c}{Time (s)} \\
+			$N$ & 1 & 100 & 10000 & 100000000 \\ \hline
+			Thread count \\ \cline{2-5}
+			 1 & 0.00000 & 0.00000 & 0.00060 &  1.43500\\
+			 2 & 0.00000 & 0.00000 & 0.00030 & 0.78000 \\
+			 4 & 0.00000 & 0.00000 & 0.00030 & 0.75500 \\
+			 8 & 0.00000 & 0.00000 & 0.00060 & 0.75500 \\
+			Pi value & 3.2000 & 3.1600 & 3.1459 & 3.1459\\
+		\end{tabular}
+	\end{table} 
+	 
+	\begin{table}
+		\centering
+		\caption{Performance reached by system with different $N$.}
+		\label{tbl:piflops}
+		\begin{tabular}{r|r|r|r|r|r}
+			& \multicolumn{4}{c}{MFlops } \\
+			$N$ & 1 & 100 & 10000 & 100000000 \\ \hline
+			Thread count \\ \cline{2-5}
+		 1 &  &  & 150 & 700  \\
+		 2 &  &  & 300 & 1270 \\
+		 4 &  &  & 300 & 1310 \\
+		 8 &  &  & 150 & 1310 \\
+		\end{tabular}
+	\end{table} 
+		
+\begin{enumerate}
+\item As can be seen in the tables, the system scales well from 1 to 2 threads when using a high number of iterations $N$ does not increase the performance very well. Only with the highest number of iterations are 4 and 8 threads a little bit faster. In a system with two cores, the twofold performance increase from 1 to 2 threads is expected. 4 and 8 threads do increase the performance a bit probably due to a more efficient use of the available cores, but this maximum is already reached with 4 threads.
+
+For low(er) number of iteration the calculation is very fast and each time it differs quite a lot, depending on other processes running and interfering probably. The amount of FLOPS shows the same pattern: two-fold performance increase from 1 to 2 threads and only slightly with more threads.
+
+With all the results, it must be noted that performance scaling, and absolute performance may be quite different per system or architecture. Also compiler optimizations are very important,which might differ per system, language and compiler. 
+\end{enumerate} 
 
 \section{LUP decomposition}
 \begin{enumerate}[(a)]
