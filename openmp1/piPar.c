@@ -7,7 +7,6 @@
 
 #define f(x) (4.0/(1.0+(x)*(x)))
 
-
 static double timer(void)
 {
   struct timeval tm;
@@ -15,17 +14,13 @@ static double timer(void)
   return tm.tv_sec + tm.tv_usec/1000000.0;
 }
 
-
-
 int main(int argc, char **argv)
 {
   int i,N,numThreads;
   double dx, sum, err;
-  //double clock;
   double flops;
   double duration;
   clock_t start, finish;
-  
 
   while (1)
   {
@@ -44,37 +39,31 @@ int main(int argc, char **argv)
     }
 
     /* start timer */
-    //clock = timer();
 	start= clock();
-     
+
     /* Step (3): numerical integration */
     dx = 1.0/N;
     sum = 0.0;
-	
+
     #pragma omp parallel for reduction (+:sum)
-    
     for (i=0; i < N; i++)
     {
-      
       sum = sum + f(dx*(i+0.5));
     }
     sum *= dx;
 
     /* stop timer */
-    //clock = timer() - clock;
-    //printf ("wallclock: %lf seconds\n", clock);
-	
 	finish = clock();
     duration = (double)(finish - start) / CLOCKS_PER_SEC;
     printf( "%2.1f seconds\n", duration );
 
     numThreads= omp_get_max_threads();
     printf(" threads: %d\n" , numThreads);
-	
+
 	/* flops performance calculation */
     flops = N * 10;
     flops = (flops/duration) / numThreads;
-    printf ("flops per seconds: %lf \n" ,flops); 
+    printf ("flops per seconds: %lf \n" ,flops);
 
     /* Step (4): print the results */
     err = sum - 4*atan(1);

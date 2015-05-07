@@ -29,8 +29,8 @@ static void parseRealOpt(int argc, char **argv, char *str, real *val) ;
 
 static void initialize(real dx, real dt, real v, int n)
 {
-   
-  
+
+
   int i, j, k;
   real lambda;
 
@@ -43,7 +43,7 @@ static void initialize(real dx, real dt, real v, int n)
   {
     printf ("Error: Convergence criterion is violated.\n");
     printf ("speed*timespacing/gridspacing=");
-    printf ("%lf*%lf/%lf=%f>0.5*sqrt(2)\n", 
+    printf ("%lf*%lf/%lf=%f>0.5*sqrt(2)\n",
             speed, timespacing, gridspacing,lambda);
     timespacing=(real)(gridspacing*sqrt(2)/(2*speed));
     printf ("Timestep changed into: timespacing=%lf\n", timespacing);
@@ -64,7 +64,7 @@ static void initialize(real dx, real dt, real v, int n)
 
   /* allocate memory for u */
   u = malloc(NFRAMES*sizeof(real **));
-   
+
   #pragma omp parallel for private(i) schedule (static)
   for (k=0; k<NFRAMES; k++)
   {
@@ -77,7 +77,7 @@ static void initialize(real dx, real dt, real v, int n)
   }
 
   /* initialize first two time steps */
-		
+
   #pragma omp parallel for private(j) schedule(static)
   for (i=0; i<N; i++)
   {
@@ -99,10 +99,10 @@ static void initialize(real dx, real dt, real v, int n)
 
 static void boundary(void)
 {
-  
+
   int i, j;
   real t = iter*timespacing;
-  
+
   #pragma omp parallel for private(j) schedule(static)
   for (i=0; i<N; i++)
   {
@@ -120,7 +120,7 @@ static void boundary(void)
 
 static void solveWave(void)
 {
-  
+
   real sqlambda;
   int i, j;
   sqlambda = speed*timespacing/gridspacing;
@@ -134,8 +134,8 @@ static void solveWave(void)
 	{
 	  for (j=1; j<N-1; j++)
 	  {
-		u[iter][i][j] += 
-		   sqlambda*(u[iter-1][i+1][j] + u[iter-1][i-1][j] + 
+		u[iter][i][j] +=
+		   sqlambda*(u[iter-1][i+1][j] + u[iter-1][i-1][j] +
 					 u[iter-1][i][j+1] + u[iter-1][i][j-1])
 		   + (2-4*sqlambda)*u[iter-1][i][j]
 		   - u[iter-2][i][j];
@@ -146,16 +146,15 @@ static void solveWave(void)
 
 static void stretchContrast(void)
 {
-  
+
   int i, j, frame;
- 
+
   real min, max, scale = 255.0;
-  
+
   min =  9999;
   max = -9999;
-  
-  #pragma omp parallel for private(i,j) reduction(max:max) reduction(min:min) schedule(static) 
- 
+
+  #pragma omp parallel for private(i,j) reduction(max:max) reduction(min:min) schedule(static)
   for (frame=2; frame<NFRAMES; frame++)
   {
     for (i=0; i<N; i++)
@@ -172,7 +171,7 @@ static void stretchContrast(void)
         }
       }
     }
- 	
+
   }
   if (max>min)
   {
@@ -221,7 +220,7 @@ static void saveFrames(int bw)
 
   rgb = malloc(3*N*N*sizeof(byte));
   #pragma omp parallel for private(i,j,k)  schedule(static)
-  
+
   for (frame=0; frame<NFRAMES; frame++)
   {
     k = 0;
@@ -355,8 +354,8 @@ int main (int argc, char **argv)
   gettimeofday (&end, NULL);
   fstart = (start.tv_sec * 1000000.0 + start.tv_usec) / 1000000.0;
   fend = (end.tv_sec * 1000000.0 + end.tv_usec) / 1000000.0;
-  printf ("wallclock: %lf seconds (ca. %5.2lf Gflop/s)\n", 
-          fend-fstart, 
+  printf ("wallclock: %lf seconds (ca. %5.2lf Gflop/s)\n",
+          fend-fstart,
           (9.0*N*N*NFRAMES/(fend-fstart))/(1024*1024*1024));
 
   /* save images */

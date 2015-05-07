@@ -2,7 +2,6 @@
  * Author: Arnold Meijster (a.meijster@rug.nl)
  * Version: 1.0 (01 March 2008)
  */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -10,7 +9,6 @@
 #include <string.h>
 
 #define real float
-
 #define ABS(a) ((a)<0 ? (-(a)) : (a))
 
 /* forward references */
