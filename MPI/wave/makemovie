@@ -1,0 +1,12 @@
+#!/bin/bash
+for f in frame*.ppm ; do 
+  convert -quality 100 $f `basename $f ppm`png &   
+done
+
+sleep 1
+
+rm -f wave.avi
+mencoder "mf://*.png" -mf fps=25 -o wave.avi -ovc lavc -lavcopts vcodec=msmpeg4v2:vbitrate=800
+
+rm -f frame*.ppm
+rm -f frame*.png

@@ -1,0 +1,14 @@
+
+Compile the file wave.c using:
+   icc -Wall -mcmodel=large -O3 -o wave wave.c -lm
+
+The program 'wave' has a couple of command-line options:
+
+  -f <int n>    : compute n frames
+  -src <int n>  : simulation with n wave sources
+  -bw  <0 or 1> : black-and-white(1) or colour(1) images
+  -n <int n>    : number of grid cells (width=height)
+  -t <float dt> : time step (in seconds) between two iterations
+  -g <float dx> : grid spacing (distance between neighbouring grid cells)
+  -s <float v>  : velocity of waves
+
