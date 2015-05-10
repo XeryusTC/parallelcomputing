@@ -1,46 +1,97 @@
 #include <stdio.h>
 #include <math.h>
+#include <mpi.h>
 
 #define FALSE 0
 #define TRUE  1
 
 static int isPrime(unsigned int p)
 {
-  int i, root;
-  if (p == 1)
-    return FALSE;
-  if (p == 2)
-    return TRUE;
-  if (p%2 == 0)
-    return FALSE;
+	int i, root;
+	if (p == 1)
+		return FALSE;
+	if (p == 2)
+		return TRUE;
+	if (p%2 == 0)
+		return FALSE;
 
-  root = (int)(1 + sqrt(p));
-  for (i = 3; (i < root) && (p%i != 0); i += 2);
-  return (i < root ? FALSE : TRUE);
+	root = (int)(1 + sqrt(p));
+	for (i = 3; (i < root) && (p%i != 0); i += 2);
+	return (i < root ? FALSE : TRUE);
 }
 
 int main (int argc, char **argv)
 {
-  unsigned int i, a, b, cnt=0;
+	unsigned int i, a, b, cnt=0, interval, size, rank, message[2];
+	MPI_Status info;
+	double t;
 
-  printf ("Enter two integer number a, b such that 1<=a<=b: ");
-  fflush(stdout);
-  scanf ("%u %u", &a, &b);
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  if (a <= 2)
-  {
-      cnt = 1;
-      a = 3;
-  }
-  if (a % 2 == 0)
-  {
-      a++;
-  }
-  
-  for (i = a; i <= b; i += 2)
-    if (isPrime(i))
-      cnt++;
+	/* MASTER */
+	if (rank == 0)
+	{
+		printf ("Enter two integer number a, b such that 1<=a<=b: ");
+		fflush(stdout);
+		scanf ("%u %u", &a, &b);
+		interval = (b - a) / size;
 
-  printf ("\n#primes=%u\n", cnt);
-  return 0;
+		message[0] = a;
+		message[1] = a + interval;
+		for (i=1; i<size; ++i)
+		{
+			message[0] += interval + 1;
+			message[1] += interval + 1;
+			if (i == size - 1)
+				message[1] = b;
+			MPI_Send(message, 2, MPI_INT, i, 0, MPI_COMM_WORLD);
+		}
+		b = a + interval;
+	}
+	/* SLAVE */
+	else
+	{
+		MPI_Recv(message, 2, MPI_INT, 0, 0, MPI_COMM_WORLD, &info);
+		a = message[0];
+		b = message[1];
+	}
+	printf("%d: interval %d - %d\n", rank, a, b);
+
+	/* Calculation code is shared */
+	t = MPI_Wtime();
+	if (a <= 2)
+	{
+		cnt = 1;
+		a = 3;
+	}
+	if (a % 2 == 0)
+	{
+		a++;
+	}
+
+	for (i = a; i <= b; i += 2)
+		if (isPrime(i))
+			cnt++;
+	printf("Time spend in %2d: %f\n", rank, MPI_Wtime() - t);
+
+	/* MASTER */
+	if (rank == 0)
+	{
+		for (i=1; i<size; ++i)
+		{
+			MPI_Recv(message, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &info);
+			cnt += message[0];
+		}
+		printf ("\n#primes=%u\n", cnt);
+	}
+	/* SLAVE */
+	else
+	{
+		MPI_Send(&cnt, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+	}
+
+	MPI_Finalize();
+	return 0;
 }
