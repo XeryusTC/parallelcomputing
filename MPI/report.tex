@@ -1,0 +1,69 @@
+\documentclass[a4paper]{article}
+
+\usepackage{fullpage}
+\usepackage{enumerate}
+\usepackage{hyperref}
+\usepackage[all]{hypcap}
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{light-gray}{gray}{0.95}
+\definecolor{dark-green}{rgb}{0, 0.5, 0}
+\definecolor{dark-gray}{gray}{0.4}
+\definecolor{Gray}{gray}{0.95}
+
+\lstset{ %
+	language = C,                   % choose the language of the code
+	basicstyle = \small\ttfamily,   % the size and fonts that are used
+	frame = single,                 % adds a frame around the code
+	tabsize = 3,                    % sets default tabsize
+	breaklines = true,              % sets automatic line breaking
+	numbers = left,                 % where to put the line-numbers
+	numberstyle = \footnotesize,    % the style of the line-numbers
+	backgroundcolor = \color{Gray}, % the background color of the listing
+	showstringspaces=false,
+	keywordstyle=\color{blue},
+}
+
+\title{Assignment 3: MPI}
+\author{Jacco Spoelder (s1348493) \and Xeryus Stokkel (s2332795)}
+
+\begin{document}
+
+\maketitle
+
+\section{Exercise 1}
+\begin{enumerate}[(a)]
+	\item 
+	\item We used the master-worker model as our parallelization strategy. The master process sends out small parts of the interval to different workers which will then work on calculating the number of primes. When all work has been distributed a termination signal will be send to each worker and the workers will send their results back to the master thread upon receiving the termination signal. Special care has been taken to ensure the ordering of messages to ensure that workers don't accidentally ignore work because they received the termination signal early. This was the case during some of our tests.
+	
+	Because of this the master thread doesn't actually do any work on finding the number of primes. Therefore there is no data for 1 process in \autoref{tbl:prime2}
+\end{enumerate}
+
+\begin{table}[h]
+	\centering
+	\caption{Runtimes for finding the number of primes by splitting the load into equal sized parts.}
+	\label{tbl:prime}
+	\begin{tabular}{l|r|r|r|r}
+		Processes & Lowest time & Highest time & Total time & Speedup \\ \hline
+		 1 &  & 2:19.603 & 2:19.74 &  \\
+		 2 & 50.613 & 1:28.635 & 1:28.78 &  \\
+		 4 & 18.427 & 47.917 & 48.20 &  \\
+		 8 &  6.737 & 24.712 & 26.16 &  \\
+		12 &  3.735 & 16.667 & 19.36 &  \\
+	\end{tabular}
+\end{table}
+
+\begin{table}[h]
+	\centering
+	\caption{Runtimes for finding the number of primes by interleaving the load.}
+	\label{tbl:prime2}
+	\begin{tabular}{l|r|r|r|r}
+		Processes & Lowest time & Highest time & Total time & Speedup \\ \hline
+		 2 &    & 2:15.493 & 2:16.68 &  \\
+	 	 4 & 45.532 & 45.621 & 46.85 &  \\
+	 	 8 & 19.486 & 19.591 & 21.06 &  \\
+		12 & 12.405 & 12.546 & 14.26 &  \\
+	\end{tabular}
+\end{table}
+\end{document}
