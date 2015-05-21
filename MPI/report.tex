@@ -34,36 +34,36 @@
 
 \section{Exercise 1}
 \begin{enumerate}[(a)]
-	\item 
+	\item When cutting the interval into equal chunks we obtain the results in \autoref{tbl:prime}. When using multiple processors we can see that there is a discrepancy in the runtime for different processors. The longest runtime can be four times as high as the lowest runtime. The cause of this is quite obvious, if there are two processors then one will work on the interval $[1, \ldots, 2.5 \cdot 10^7]$ while the other will work on the interval $[2.5 \cdot 10^7, \ldots, 5 \cdot 10^7]$. This means that the first process will need to check roughly $\sqrt{\sum_{n=1}^{2.5 \cdot 10^7}n} \approx 1.7 \cdot 10^7$ numbers, the second process needs to check $\sqrt{\sum_{n=2.5\cdot 10^7}^{5\cdot 10^7}n} \approx 3 \cdot 10^7$ numbers in total in the \texttt{isPrime} function. This is almost a doubling of the amount of possible divisors to check and we can see that the runtime is also almost double from \autoref{tbl:prime}. Once the processor with the largest numbers in its interval is done the program will also complete after displaying the total number of primes.
 	\item We used the master-worker model as our parallelization strategy. The master process sends out small parts of the interval to different workers which will then work on calculating the number of primes. When all work has been distributed a termination signal will be send to each worker and the workers will send their results back to the master thread upon receiving the termination signal. Special care has been taken to ensure the ordering of messages to ensure that workers don't accidentally ignore work because they received the termination signal early. This was the case during some of our tests.
 	
-	Because of this the master thread doesn't actually do any work on finding the number of primes. Therefore there is no data for 1 process in \autoref{tbl:prime2}
+	Because of this the master thread doesn't actually do any work on finding the number of primes. Therefore there is no data for 1 process in \autoref{tbl:prime2} since it would never complete. From \autoref{tbl:prime2} we can see that the speed-up is a lot higher than in \autoref{tbl:prime}. It should be noted that there is effectively one thread less working on the problem than the table states so the achieved speed-up would be higher if all the threads would've been working on the problem. In \autoref{tbl:prime2} we also see that the difference in highest and lowest runtime is about 100ms so the load is a lot better balanced amongst the processors as none of them finishes early.
 \end{enumerate}
 
 \begin{table}[h]
 	\centering
-	\caption{Runtimes for finding the number of primes by splitting the load into equal sized parts.}
+	\caption{Runtimes for finding the number of primes by splitting the load into equal sized parts. Runtime for the sequential program is 2:22.72, the speed-up is based on comparing to this time.}
 	\label{tbl:prime}
 	\begin{tabular}{l|r|r|r|r}
-		Processes & Lowest time & Highest time & Total time & Speedup \\ \hline
-		 1 &  & 2:19.603 & 2:19.74 &  \\
-		 2 & 50.613 & 1:28.635 & 1:28.78 &  \\
-		 4 & 18.427 & 47.917 & 48.20 &  \\
-		 8 &  6.737 & 24.712 & 26.16 &  \\
-		12 &  3.735 & 16.667 & 19.36 &  \\
+		Processes & Lowest time & Highest time & Total time & Speed-up \\ \hline
+		 1 &  & 2:19.60 & 2:19.74 & 1.02 \\
+		 2 & 50.61 & 1:28.64 & 1:28.78 & 1.61 \\
+		 4 & 18.43 & 47.92 & 48.20 & 2.96 \\
+		 8 &  6.74 & 24.71 & 26.16 & 5.46 \\
+		12 &  3.74 & 16.67 & 19.36 & 7.37 \\
 	\end{tabular}
 \end{table}
 
 \begin{table}[h]
 	\centering
-	\caption{Runtimes for finding the number of primes by interleaving the load.}
+	\caption{Runtimes for finding the number of primes by interleaving the load. Runtime for the sequential program is 2:22.72, the speed-up is based on comparing to this time.}
 	\label{tbl:prime2}
 	\begin{tabular}{l|r|r|r|r}
 		Processes & Lowest time & Highest time & Total time & Speedup \\ \hline
-		 2 &    & 2:15.493 & 2:16.68 &  \\
-	 	 4 & 45.532 & 45.621 & 46.85 &  \\
-	 	 8 & 19.486 & 19.591 & 21.06 &  \\
-		12 & 12.405 & 12.546 & 14.26 &  \\
+		 2 &    & 2:15.49 & 2:16.68 & 1.04 \\
+	 	 4 & 45.53 & 45.62 & 46.85 & 3.04 \\
+	 	 8 & 19.49 & 19.59 & 21.06 & 6.78 \\
+		12 & 12.41 & 12.55 & 14.26 & 10.01 \\
 	\end{tabular}
 \end{table}
 \end{document}
