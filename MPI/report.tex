@@ -37,7 +37,7 @@
 	\item When cutting the interval into equal chunks we obtain the results in \autoref{tbl:prime}. When using multiple processors we can see that there is a discrepancy in the runtime for different processors. The longest runtime can be four times as high as the lowest runtime. The cause of this is quite obvious, if there are two processors then one will work on the interval $[1, \ldots, 2.5 \cdot 10^7]$ while the other will work on the interval $[2.5 \cdot 10^7, \ldots, 5 \cdot 10^7]$. This means that the first process will need to check roughly $\sqrt{\sum_{n=1}^{2.5 \cdot 10^7}n} \approx 1.7 \cdot 10^7$ numbers, the second process needs to check $\sqrt{\sum_{n=2.5\cdot 10^7}^{5\cdot 10^7}n} \approx 3 \cdot 10^7$ numbers in total in the \texttt{isPrime} function. This is almost a doubling of the amount of possible divisors to check and we can see that the runtime is also almost double from \autoref{tbl:prime}. Once the processor with the largest numbers in its interval is done the program will also complete after displaying the total number of primes.
 	\item We used the master-worker model as our parallelization strategy. The master process sends out small parts of the interval to different workers which will then work on calculating the number of primes. When all work has been distributed a termination signal will be send to each worker and the workers will send their results back to the master thread upon receiving the termination signal. Special care has been taken to ensure the ordering of messages to ensure that workers don't accidentally ignore work because they received the termination signal early. This was the case during some of our tests.
 	
-	Because of this the master thread doesn't actually do any work on finding the number of primes. Therefore there is no data for 1 process in \autoref{tbl:prime2} since it would never complete. From \autoref{tbl:prime2} we can see that the speed-up is a lot higher than in \autoref{tbl:prime}. It should be noted that there is effectively one thread less working on the problem than the table states so the achieved speed-up would be higher if all the threads would've been working on the problem. In \autoref{tbl:prime2} we also see that the difference in highest and lowest runtime is about 100ms so the load is a lot better balanced amongst the processors as none of them finishes early.
+	Because of this the master thread doesn't actually do any work on finding the number of primes. Therefore there is no data for 1 process in \autoref{tbl:prime2} since it would never complete. From \autoref{tbl:prime2} we can see that the speed-up is a lot higher than in \autoref{tbl:prime}. It should be noted that there is effectively one thread less working on the problem than the table states so the achieved speed-up would be higher if all the threads would've been working on the problem. In \autoref{tbl:prime2} we also see that the difference in highest and lowest runtime is about 100ms so the load is a lot better balanced amongst the processors as none of them finishes early.b
 \end{enumerate}
 
 \begin{table}[h]
@@ -66,4 +66,53 @@
 		12 & 12.41 & 12.55 & 14.26 & 10.01 \\
 	\end{tabular}
 \end{table}
+
+\section{Contrast stretching}
+
+\section{Mandelbrot fractal}
+
+\begin{table}[h]
+	\centering
+	\caption{Runtimes for generating an Mandelbrot set image using static domain decomposition. Process times are the time that each process takes to calculate its part of the image, while total time is the time that the program took including memory allocation, MPI communication and writing the fractal to a file.}
+	\label{tbl:mandelbrot}
+	\begin{tabular}{l|r|r|r|r|r}
+		& 1 & 2 & 4 & 8 & 12 \\ \hline
+		process 0  & 40.76 & 20.36 &  1.14 &  0.06 &  0.03 \\
+		process 1  &       & 20.40 & 19.19 &  1.10 &  0.12 \\
+		process 2  &       &       & 19.25 &  7.18 &  1.04 \\
+		process 3  &       &       &  1.17 & 12.03 &  4.36 \\
+		process 4  &       &       &       & 12.06 &  6.20 \\
+		process 5  &       &       &       &  7.20 &  8.70 \\
+		process 6  &       &       &       &  1.12 &  8.71 \\
+		process 7  &       &       &       &  0.06 &  6.18 \\
+		process 8  &       &       &       &       &  4.37 \\
+		process 9  &       &       &       &       &  1.03 \\
+		process 10 &       &       &       &       &  0.11 \\
+		process 11 &       &       &       &       &  0.04 \\ \hline
+		Total      & 41.63 & 21.03 & 20.92 & 13.95 & 10.19
+	\end{tabular}
+\end{table}
+
+\begin{table}[h]
+	\centering
+	\caption{Runtimes for generating an Mandelbrot set image by using the master-slave model. Process time is the time that a process took for MPI communication and fractal calculation while total time includes setup and writing the obtained image to a file.}
+	\label{tbl:mandelbrot}
+	\begin{tabular}{l|r|r|r|r}
+		 & 2 & 4 & 8 & 12 \\ \hline
+		process 0  & 41.26 & 14.05 & 6.30 & 4.16 \\
+		process 1  & 40.83 & 13.62 & 5.84 & 3.73 \\
+		process 2  &       & 13.62 & 5.84 & 3.73 \\
+		process 3  &       & 13.62 & 5.84 & 3.73 \\
+		process 4  &       &       & 5.84 & 3.74 \\
+		process 5  &       &       & 5.84 & 3.72 \\
+		process 6  &       &       & 5.84 & 3.73 \\
+		process 7  &       &       & 5.84 & 3.73 \\
+		process 8  &       &       &      & 3.73 \\
+		process 9  &       &       &      & 3.73 \\
+		process 10 &       &       &      & 3.73 \\
+		process 11 &       &       &      & 3.73 \\ \hline
+		Total      & 42.44 & 15.30 & 7.71 & 5.92
+	\end{tabular}
+\end{table}
+
 \end{document}
