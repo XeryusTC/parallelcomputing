@@ -1,13 +1,14 @@
 /* file: render.c
  *(C) Arnold Meijster and Rob de Bruin
  *
- * A simple orthogonal maximum intensity projection volume render. 
+ * A simple orthogonal maximum intensity projection volume render.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <mpi.h>
 
 typedef unsigned char byte;
 
@@ -79,14 +80,14 @@ static Volume makeVolume(int w, int h, int d)
   vol->width  = w;
   vol->height = h;
   vol->depth  = d;
-  
+
   vol->voldata = safeMalloc(d*sizeof(int **));
   for (slice = 0; slice < d; slice++)
   {
     vol->voldata[slice] = safeMalloc(h*sizeof(int *));
     for (row = 0; row < h; row++)
     {
-      vol->voldata[slice][row] = safeMalloc(w*sizeof(int));         
+      vol->voldata[slice][row] = safeMalloc(w*sizeof(int));
     }
   }
   return vol;
@@ -99,7 +100,7 @@ static void freeVolume(Volume vol)
   {
     for (row = 0; row < vol->height; row++)
     {
-      free(vol->voldata[slice][row]);       
+      free(vol->voldata[slice][row]);
     }
     free(vol->voldata[slice]);
   }
@@ -127,7 +128,7 @@ static void writePGM(Image im, char *filename)
     for (col = 0; col < im->width; col++)
     {
       scanline[col] = (unsigned char)(im->imdata[row][col] % 256);
-    }    
+    }
     fwrite(scanline, 1, im->width, f);
   }
   free (scanline);
@@ -142,10 +143,10 @@ static Volume readVolume (char *filename)
   int i, j, k, width, height, depth;
   FILE *f;
   byte *scanline;
-  
+
   f = fopen(filename, "rb");
   if (!f) error("Error opening volume file");
-  
+
   fscanf (f, "D3\n%d %d %d\n255\n", &width, &height, &depth);
 
   volume = makeVolume(width, height, depth);
@@ -161,7 +162,7 @@ static Volume readVolume (char *filename)
         vol[i][j][k] = scanline[k];
       }
     }
-  } 
+  }
   free(scanline);
   fclose (f);
   return volume;
@@ -170,9 +171,9 @@ static Volume readVolume (char *filename)
 static void rotateVolume (double rotx, double roty, double rotz,
                           Volume volume, Volume rotvolume)
 {
-  /* rotate the volume around the x-axis with angle rotx, followed 
+  /* rotate the volume around the x-axis with angle rotx, followed
    * by a rotation around the y-axis with angle roty, and finally
-   * around the z-axis with angle rotz. The rotated volume is 
+   * around the z-axis with angle rotz. The rotated volume is
    * returned in rotvolume.
    */
   int i, j, k, xi, yi, zi;
@@ -184,7 +185,7 @@ static void rotateVolume (double rotx, double roty, double rotz,
   double x, y, z;
   double sinx, siny, sinz;
   double cosx, cosy, cosz;
-  
+
   for (i=0; i<depth; i++)
   {
     for (j=0; j<height; j++)
@@ -249,7 +250,7 @@ static void contrastStretch (int low, int high, Image image)
   int row, col, min, max;
   int width=image->width, height=image->height, **im=image->imdata;
   double scale;
-    
+
   /* Determine minimum and maximum */
   min = max = im[0][0];
   for (row = 0; row < height; row++)
@@ -257,10 +258,10 @@ static void contrastStretch (int low, int high, Image image)
     for (col = 0; col < width; col++)
     {
       min = (im[row][col] < min ? im[row][col] : min);
-      max = (im[row][col] > max ? im[row][col] : max);      
+      max = (im[row][col] > max ? im[row][col] : max);
     }
   }
-  
+
   /* Compute scale factor */
   scale = (double)(high-low) / (max-min);
 
@@ -276,13 +277,13 @@ static void contrastStretch (int low, int high, Image image)
 
 static void orthoGraphicRenderer(Volume volume, Image image)
 {
-  /* Render image from volume (othographic maximum intensity 
+  /* Render image from volume (othographic maximum intensity
    * projection).
    */
   int i, j, k;
   int width=volume->width;
   int height=volume->height;
-  int depth=volume->depth;                           
+  int depth=volume->depth;
   int **im=image->imdata;
   byte ***vol=volume->voldata;
 
@@ -293,7 +294,7 @@ static void orthoGraphicRenderer(Volume volume, Image image)
       im[i][j] = 0;
     }
   }
-  
+
   for (i=0; i<depth; i++)
   {
     for (j=0; j<height; j++)
@@ -339,8 +340,8 @@ static void smoothImage(Image image, Image smooth)
   }
 }
 
-static void  computeFrame(int frame, 
-                          double rotx, double roty, double rotz,                    
+static void  computeFrame(int frame,
+                          double rotx, double roty, double rotz,
                           Volume vol, Volume rot,
                           Image image, Image smooth)
 {
@@ -349,7 +350,7 @@ static void  computeFrame(int frame,
   orthoGraphicRenderer (rot, image);
   smoothImage(image, smooth);
   sprintf (fnm, "frame%04d.pgm", frame);
-  writePGM(smooth, fnm);    
+  writePGM(smooth, fnm);
 }
 
 int main (int argc, char **argv)
@@ -359,7 +360,7 @@ int main (int argc, char **argv)
   Image im, smooth;
   int frame;
   double rotx, roty, rotz;
-  
+
   if (argc!=2)
   {
     fprintf (stderr, "Usage: %s <volume.vox>\n", argv[0]);
@@ -371,9 +372,9 @@ int main (int argc, char **argv)
   height = vol->height;
   depth  = vol->depth;
   rot = makeVolume(width, height, depth);
- 
-  im  = makeImage(width, height);  
-  smooth = makeImage(width, height); 
+
+  im  = makeImage(width, height);
+  smooth = makeImage(width, height);
 
   /* Rotation around x-axis */
   for (frame = 0; frame < NFRAMES; frame++)
@@ -389,7 +390,7 @@ int main (int argc, char **argv)
                 break;
     }
     computeFrame(frame, rotx, roty, rotz, vol, rot, im, smooth);
-  } 
+  }
 
   freeVolume(rot);
   freeVolume(vol);
