@@ -68,6 +68,7 @@ static Image makeImage(int w, int h)
 
 static void freeImage(Image im)
 { /* routine for deallocating memory occupied by an image */
+    free(im->imdata[0]);
     free(im->imdata);
     free(im);
 }
