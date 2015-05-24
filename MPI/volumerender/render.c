@@ -14,6 +14,12 @@ typedef unsigned char byte;
 
 #define NFRAMES 360
 
+enum TAGS
+{
+    RESULT_TAG,
+    TASK_TAG,
+};
+
 int size, rank;
 
 /* Data type for storing 2D greyscale image */
@@ -336,7 +342,7 @@ static void smoothImage(Image image, Image smooth)
     }
 }
 
-void computeFrame2(int frame, double rotx, double roty, double rotz,
+static void computeFrame2(int frame, double rotx, double roty, double rotz,
         Volume vol, Volume rot, Image image, Image smooth)
 {
     rotateVolume(rotx, roty, rotz, vol, rot);
@@ -344,124 +350,140 @@ void computeFrame2(int frame, double rotx, double roty, double rotz,
     smoothImage(image, smooth);
 }
 
+static void masterProcess(char *filename)
+{
+    int width, height, depth, i, curFrame, slaveId, running;
+    int *tasks, v[3];
+    char fnm[256];
+    Volume vol;
+    Image im;
+    MPI_Status status;
+    MPI_Request *requests;
+
+    tasks    = malloc(size * sizeof(int));
+    requests = malloc(size * sizeof(MPI_Request));
+
+    /* load volume and send it out to all the slaves */
+    vol = readVolume(filename);
+    width  = v[0] = vol->width;
+    height = v[1] = vol->height;
+    depth  = v[2] = vol->depth;
+    im = makeImage(width, height);
+
+    /* broadcast size to all processes so they can allocate memory */
+    MPI_Bcast(v, 3, MPI_INT, 0, MPI_COMM_WORLD);
+    /* send volume data to all processes */
+    MPI_Bcast(vol->voldata3d, width*height*depth, MPI_BYTE, 0, MPI_COMM_WORLD);
+
+    /* send initial work and wait for a response */
+    curFrame = 0;
+    for (i=0; i<size; ++i)
+    {
+        MPI_Irecv(im->imdata[0], width*height, MPI_INT, i, RESULT_TAG,
+                MPI_COMM_WORLD, &requests[i]);
+        if (i == 0) continue;
+        MPI_Send(&curFrame, 1, MPI_INT, i, TASK_TAG, MPI_COMM_WORLD);
+        tasks[i] = curFrame++;
+    }
+
+    /* start mainloop */
+    running = size - 1;
+    while(running > 0)
+    {
+        MPI_Waitany(size, requests, &slaveId, &status);
+        sprintf (fnm, "frame%04d.pgm", tasks[slaveId]);
+        writePGM(im, fnm);
+
+        /* Send a new frame if there is still work to be done */
+        if (curFrame < NFRAMES)
+        {
+            MPI_Send(&curFrame, 1, MPI_INT, slaveId, TASK_TAG, MPI_COMM_WORLD);
+            tasks[slaveId] = curFrame++;
+            MPI_Irecv(im->imdata[0], width*height, MPI_INT, slaveId,
+                    RESULT_TAG, MPI_COMM_WORLD, &requests[slaveId]);
+        }
+        /* Send kill signal */
+        else
+        {
+            i = -1;
+            MPI_Send(&i, 1, MPI_INT, slaveId, TASK_TAG, MPI_COMM_WORLD);
+            running--;
+        }
+    }
+
+    free(tasks);
+    free(requests);
+    freeVolume(vol);
+    freeImage(im);
+}
+
+static void slaveProcess()
+{
+    int width, height, depth, v[3], frame;
+    Volume vol, rot;
+    double rotx, roty, rotz;
+    Image im, smooth;
+    MPI_Status status;
+
+    /* retrieve the size of the data so we can allocate memory */
+    MPI_Bcast(v, 3, MPI_INT, 0, MPI_COMM_WORLD);
+    width  = v[0];
+    height = v[1];
+    depth  = v[2];
+    vol = makeVolume(width, height, depth);
+    rot = makeVolume(width, height, depth);
+    im  = makeImage(width, height);
+    smooth = makeImage(width, height);
+    /* retrieve the volume data and store it in the volume */
+    MPI_Bcast(vol->voldata3d, width*height*depth, MPI_BYTE, 0, MPI_COMM_WORLD);
+
+    /* main loop */
+    while (1)
+    {
+        MPI_Recv(&frame, 1, MPI_INT, 0, TASK_TAG, MPI_COMM_WORLD, &status);
+        /* shut down on the termination signal */
+        if (frame == -1)
+            break;
+        /* compute the frame and send it to the master */
+        rotx = roty = rotz = 0;
+        switch (3*frame/NFRAMES)
+        {
+            case 0: rotx = 6*M_PI*frame/NFRAMES; break;
+            case 1: roty = 6*M_PI*frame/NFRAMES; break;
+            case 2: rotz = 6*M_PI*frame/NFRAMES; break;
+        }
+        computeFrame2(frame, rotx, roty, rotz, vol, rot, im, smooth);
+        MPI_Send(smooth->imdata[0], width*height, MPI_INT, 0, RESULT_TAG,
+                MPI_COMM_WORLD);
+    }
+
+    freeImage(im);
+    freeImage(smooth);
+    freeVolume(vol);
+    freeVolume(rot);
+}
+
 int main (int argc, char **argv)
 {
-    int width, height, depth, v[3];
-    Volume vol, rot;
-    Image im, smooth;
-    int frame, running, count;
-    double rotx, roty, rotz, t;
-    MPI_Status status;
-    char fnm[256];
+    double t;
+
+    if (argc!=2)
+    {
+        fprintf (stderr, "Usage: %s <volume.vox>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
 
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     printf("Process %d reporting for duty!\n", rank);
 
+    t = MPI_Wtime();
     if (rank == 0)
-    {
-        if (argc!=2)
-        {
-            fprintf (stderr, "Usage: %s <volume.vox>\n", argv[0]);
-            exit(EXIT_FAILURE);
-        }
-
-        vol = readVolume (argv[1]);
-        width  = v[0] = vol->width;
-        height = v[1] = vol->height;
-        depth  = v[2] = vol->depth;
-        im = makeImage(width, height);
-
-        /* broadcast size to all processes so they can allocate memory */
-        MPI_Bcast(v, 3, MPI_INT, 0, MPI_COMM_WORLD);
-        /* send volume data to all processes */
-        MPI_Bcast(vol->voldata3d, width*height*depth, MPI_BYTE, 0, MPI_COMM_WORLD);
-
-        /* send frames to all the slaves */
-        t = MPI_Wtime();
-        running = size;
-        count = 0;
-        while (running > 1)
-        {
-            /* slave sends the frame which it is returning */
-            MPI_Recv(&frame, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG,
-                    MPI_COMM_WORLD, &status);
-            /* retrieve the frame data from the slave */
-            if (frame >= 0)
-            {
-                MPI_Recv(im->imdata[0], width*height, MPI_INT,
-                        status.MPI_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,
-                        &status);
-                /* write the frame to file */
-                sprintf (fnm, "frame%04d.pgm", frame);
-                writePGM(im, fnm);
-            }
-
-            if (count < NFRAMES)
-            {
-                /* send a new frame to the slave if any are available */
-                MPI_Send(&count, 1, MPI_INT, status.MPI_SOURCE, 0,
-                        MPI_COMM_WORLD);
-                count++;
-            }
-            else
-            {
-                /* send termination signal */
-                frame = -1;
-                MPI_Send(&frame, 1, MPI_INT, status.MPI_SOURCE, 0,
-                        MPI_COMM_WORLD);
-                running--;
-            }
-        }
-    }
-    /* slave */
+        masterProcess(argv[1]);
     else
-    {
-        /* retrieve the size so we can allocate memory */
-        MPI_Bcast(v, 3, MPI_INT, 0, MPI_COMM_WORLD);
-        width  = v[0];
-        height = v[1];
-        depth  = v[2];
-        vol = makeVolume(width, height, depth);
-        /* retrieve the volume data and store it in the volume */
-        MPI_Bcast(vol->voldata3d, width*height*depth, MPI_BYTE, 0, MPI_COMM_WORLD);
-
-        rot = makeVolume(width, height, depth);
-        im = makeImage(width, height);
-        smooth = makeImage(width, height);
-
-        /* register with master */
-        t = MPI_Wtime();
-        frame = -1;
-        MPI_Send(&frame, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-        while (1)
-        {
-            MPI_Recv(&frame, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD,
-                    &status);
-            /* shut down on term signal */
-            if (frame == -1)
-                break;
-            /* compute frame and send it to the master */
-            rotx = roty = rotz = 0;
-            switch (3*frame/NFRAMES)
-            {
-                case 0: rotx = 6*M_PI*frame/NFRAMES; break;
-                case 1: roty = 6*M_PI*frame/NFRAMES; break;
-                case 2: rotz = 6*M_PI*frame/NFRAMES; break;
-            }
-            computeFrame2(frame, rotx, roty, rotz, vol, rot, im, smooth);
-            MPI_Send(&frame, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-            MPI_Send(smooth->imdata[0], width*height, MPI_INT, 0, 0,
-                    MPI_COMM_WORLD);
-        }
-        freeImage(smooth);
-        freeVolume(rot);
-    }
+        slaveProcess();
     printf("Process %d: %f sec\n", rank, MPI_Wtime()-t);
-    freeVolume(vol);
-    if (im != NULL);
-        freeImage(im);
 
     MPI_Finalize();
 
