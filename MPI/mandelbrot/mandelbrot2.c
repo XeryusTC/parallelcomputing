@@ -107,6 +107,49 @@ static void writePPM(Image im, char *filename)
     fclose(f);
 }
 
+static void writePPMCalculations(Image im, char *filename)
+{ /* routine that writes how many calculations have to be done per pixel to file */
+    int row, col;
+    unsigned char *scanline;
+    int h, idx;
+    long total=0;
+    char fn[256];
+    FILE *f=NULL;
+
+    scanline = malloc(im->width*3*sizeof(unsigned char));
+    for (row = 0; row < im->height; row++)
+    {
+        if ((row % (HEIGHT/size)) == 0)
+        {
+            sprintf(fn, "%s%d.ppm", filename, row / (HEIGHT/size));
+            printf("%s\n", fn);
+            if (f != NULL)
+                fclose(f);
+            f = fopen(fn, "wb");
+            if (f == NULL)
+                error("Opening of file failed\n");
+            fprintf(f, "P6\n");
+            fprintf(f, "%d %d\n\n255\n", im->width, im->height/size);
+
+            printf("calculations: %ld\n", total);
+            total = 0;
+        }
+        idx = 0;
+        for (col = 0; col < im->width; ++col)
+        {
+            h = im->imdata[row][col];
+            total += h;
+            scanline[idx++] = (unsigned char)(MAXITER/h*255);
+            scanline[idx++] = (unsigned char)(MAXITER/h*255);
+            scanline[idx++] = (unsigned char)(MAXITER/h*255);
+        }
+        fwrite(scanline, 3, im->width, f);
+    }
+    printf("calculations: %ld\n", total);
+    free(scanline);
+    fclose(f);
+}
+
 static void mandelbrotSet(double centerX, double centerY,
         double scale, Image image, int row)
 { /* routine that computes an image of the mandelbrot set */
@@ -179,6 +222,7 @@ int main(int argc, char **argv)
         }
 
         writePPM (mandelbrot, "mandelbrot.ppm");
+        writePPMCalculations(mandelbrot, "mandelbrotcalc");
     } else {
         /* register with the master */
         MPI_Send(mandelbrot->imdata[0], mandelbrot->width, MPI_INT, 0,
