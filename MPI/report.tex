@@ -151,4 +151,44 @@
 	\end{tabular}
 \end{table}
 
+\section{Volume rendering}
+\begin{enumerate}[(a)]
+	\setcounter{enumi}{1}
+	\item Timing results for the $128 \times 128 \times 128$ input file can be found in \autoref{tbl:render}. The first thing of note is that there is a small speed-up with just two threads, this is slightly odd because there is still only one process doing all the calculations. The master process is doing all the disk IO though, so the thread which is calculating the data doesn't have to wait for a hard drive before it can start calculating again. This small concurrency is enough to be a small enough speed-up. The speed up between 8 and 12 processes is not very large, this is most likely due to processes needing to wait for the master to write another processes' result to the disk before it will hand out a new task to that process. This means that slaves are waiting on the master thread a sizeable portion of the time.
+	
+	Another remarkable thing is that the change in speed up going from 4 to 8 processes is very large! There doesn't seem to be a good explanation for this. The most likely cause is that with 8 processes the communication between the master and the slaves is just rightly balanced so that slaves don't really have to wait for each other to finish communicating with the master, they also don't have to wait that long for the master to finish writing the received data to a file.
+	
+	\item When the input data is $256 \times 256 \times 256$ voxels large the runtimes in \autoref{tbl:render2} are obtained. What is most notable in comparison to \autoref{tbl:render} is that the speed up is lower is that the large jump in speed up between 4 and 8 processes is mostly gone. This is most likely because the amount of time to calculate a frame has increased more than the time required to write a frame to disk. This means that slave processes haven't hit a sweet spot between doing calculation and communicating/waiting for the master.
+	
+	The maximum speed up also seems to be higher when comparing the two differently sized inputs. This seems to be a case of Gustafson's law in working, when you increase the size of the dataset then you will also see an increase in speed up.
+\end{enumerate}
+
+\begin{table}[h]
+	\centering
+	\caption{Volume renderer run times for different number of processes. Process time is the maximum of the time that all subprocesses take to do their calculations. Total time is the time that the program ran, this includes setup and system time.}
+	\label{tbl:render}
+	\begin{tabular}{r|r|r|r}
+		Processes & Process time & Total time & Speed up\\ \hline
+		Sequential & & 48.05 \\
+		 2 & 46.08 & 46.30 & 1.04 \\
+		 4 & 21.05 & 22.27 & 2.15 \\
+		 8 &  5.45 &  6.85 & 7.01 \\
+		12 &  3.72 &  6.41 & 7.49
+	\end{tabular}
+\end{table}
+
+\begin{table}[h]
+	\centering
+	\caption{Run time for the volume renderer when the input file is $256 \times 256 \times 256$ voxels large. Process time is the maximum of the time that all subprocesses take to do their calculations. Total time is the time that the program ran, this includes setup and system time.}
+	\label{tbl:render2}
+	\begin{tabular}{r|r|r|r}
+		Processes & Process time & Total time & Speed up \\ \hline
+		Sequential & & 5:39.97 & \\
+		 2 & 5:30.26 & 5:30.41 & 1.03 \\
+		 4 & 2:03.99 & 2:05.21 & 2.72 \\
+		 8 &   52.60 &   54.02 & 6.29 \\
+		12 &   37.75 &   39.48 & 8.61
+	\end{tabular}
+\end{table}
+
 \end{document}

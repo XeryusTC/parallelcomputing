@@ -391,9 +391,6 @@ static void masterProcess(char *filename)
     while(running > 0)
     {
         MPI_Waitany(size, requests, &slaveId, &status);
-        sprintf (fnm, "frame%04d.pgm", tasks[slaveId]);
-        writePGM(im, fnm);
-
         /* Send a new frame if there is still work to be done */
         if (curFrame < NFRAMES)
         {
@@ -409,6 +406,8 @@ static void masterProcess(char *filename)
             MPI_Send(&i, 1, MPI_INT, slaveId, TASK_TAG, MPI_COMM_WORLD);
             running--;
         }
+        sprintf (fnm, "frame%04d.pgm", tasks[slaveId]);
+        writePGM(im, fnm);
     }
 
     free(tasks);
