@@ -400,6 +400,8 @@ static void masterProcess(int argc, char **argv)
     saveFrames(bw);
 
     printf("%2d: elapsed time %f\n", rank, MPI_Wtime() - t);
+    free(sendcount);
+    free(offset);
 }
 
 static void slaveProcess()
@@ -441,10 +443,14 @@ static void slaveProcess()
     MPI_Allreduce(&max, &m, 1, MPI_FLOAT, MPI_MAX, MPI_COMM_WORLD);
     max = m;
     stretchContrast(sendcount, offset);
+
+    free(sendcount);
+    free(offset);
 }
 
 int main (int argc, char **argv)
 {
+    int k;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -459,6 +465,16 @@ int main (int argc, char **argv)
     {
         slaveProcess();
     }
+
+    free(src);
+    free(ampl);
+    for (k=0; k<NFRAMES; ++k)
+    {
+        free(u[k][0]);
+        free(u[k]);
+    }
+    free(u);
+
     MPI_Finalize();
     return EXIT_SUCCESS;
 }
