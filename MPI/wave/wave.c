@@ -17,13 +17,14 @@ real gridspacing, timespacing, speed;
 int  iter;
 real ***u;
 int rank, size;
+real min, max;
 
 #define ABS(a) ((a)<0 ? (-(a)) : (a))
 
 static void initialize(real dx, real dt, real v, int n);
 static void boundary(void);
 static void solveWave(int *sendcount, int *offset);
-static void stretchContrast(void);
+static void stretchContrast(int *sendcount, int *offset);
 static void saveFrames(int bw);
 static void parseIntOpt(int argc, char **argv, char *str, int *val) ;
 static void parseRealOpt(int argc, char **argv, char *str, real *val) ;
@@ -126,23 +127,29 @@ static void solveWave(int *sendcount, int *offset)
     sqlambda = speed*timespacing/gridspacing;
     sqlambda = sqlambda*sqlambda;
     start = offset[rank];
+    if (start == 0)
+        start++;
     end = offset[rank] + sendcount[rank];
+    if (end == N)
+        end--;
+
+    /* Calculate the size in elements of each process */
     sizes   = malloc(sizeof(int) * size);
     offsets = malloc(sizeof(int) * size);
     for (i=0; i<size; ++i)
     {
         sizes[i]   = sendcount[i]*N;
         offsets[i] = offset[i]*N;
-        if (rank == 0) {
-            printf("Process %d sizes: %d\t%d\n", i, sizes[i], offsets[i]);
-        }
     }
     data = malloc(sizeof(real)*sizes[rank]);
+    /* set initial values for contrast stretching */
+    min =  9999;
+    max = -9999;
 
     for (iter=2; iter<NFRAMES; iter++)
     {
         boundary();
-        for (i=start+1; i<end-1; i++)
+        for (i=start; i<end; i++)
         {
             for (j=1; j<N-1; j++)
             {
@@ -151,6 +158,10 @@ static void solveWave(int *sendcount, int *offset)
                             u[iter-1][i][j+1] + u[iter-1][i][j-1])
                     + (2-4*sqlambda)*u[iter-1][i][j]
                     - u[iter-2][i][j];
+                if (u[iter][i][j] < min)
+                    min = u[iter][i][j];
+                if (u[iter][i][j] > max)
+                    max = u[iter][i][j];
             }
         }
         memcpy(data, (u[iter][0] + offsets[rank]), sizes[rank]*sizeof(real));
@@ -162,44 +173,43 @@ static void solveWave(int *sendcount, int *offset)
     free(offsets);
 }
 
-static void stretchContrast(void)
+static void stretchContrast(int *sendcount, int *offset)
 {
-    int i, j, frame;
-    real min, max, scale = 255.0;
+    int i, j, frame, start, end, *sizes, *offsets;
+    real scale = 255.0, *data;
 
-    min =  9999;
-    max = -9999;
-    for (frame=2; frame<NFRAMES; frame++)
+    sizes = malloc(sizeof(int) * size);
+    offsets = malloc(sizeof(int) * size);
+    start = offset[rank];
+    end   = offset[rank] + sendcount[rank];
+    for (i=0; i<size; ++i)
     {
-        for (i=0; i<N; i++)
-        {
-            for (j=0; j<N; j++)
-            {
-                if (u[frame][i][j] < min)
-                {
-                    min = u[frame][i][j];
-                }
-                if (u[frame][i][j] > max)
-                {
-                    max = u[frame][i][j];
-                }
-            }
-        }
+        sizes[i] = sendcount[i] * N;
+        offsets[i] = offset[i] * N;
     }
+    data = malloc(sizeof(real) * sizes[rank]);
+
     if (max>min)
     {
         scale = scale/(max-min);
     }
     for (frame=0; frame<NFRAMES; frame++)
     {
-        for (i=0; i<N; i++)
+        for (i=start; i<end; i++)
         {
             for (j=0; j<N; j++)
             {
                 u[frame][i][j] = scale*(u[frame][i][j] - min);
             }
         }
+        memcpy(data, (u[frame][0] + offsets[rank]), sizes[rank]*sizeof(real));
+        MPI_Gatherv(data, sizes[rank], MPI_FLOAT, u[frame][0], sizes, offsets,
+                MPI_FLOAT, 0, MPI_COMM_WORLD);
     }
+
+    free(sizes);
+    free(offsets);
+    free(data);
 }
 
 static void saveFrames(int bw)
@@ -323,7 +333,7 @@ static void masterProcess(int argc, char **argv)
     double t;
     int i, *sendcount, *offset, chunksize;
     int n = 10, bw = 0, intopts[4];
-    real dt = 0.1, dx = 0.1, v = 0.5, realopts[3];
+    real dt = 0.1, dx = 0.1, v = 0.5, realopts[3], m;
     NFRAMES = 100;
     N = 300;
 
@@ -373,13 +383,20 @@ static void masterProcess(int argc, char **argv)
     /* initialize system */
     initialize(dx, dt, v, n);
 
+    /* solve the wave equation */
     printf("Solving wave equation...\n");
     t = MPI_Wtime();
     solveWave(sendcount, offset);
 
+    /* do contrast stretching */
+    MPI_Allreduce(&min, &m, 1, MPI_FLOAT, MPI_MIN, MPI_COMM_WORLD);
+    min = m;
+    MPI_Allreduce(&max, &m, 1, MPI_FLOAT, MPI_MAX, MPI_COMM_WORLD);
+    max = m;
+    stretchContrast(sendcount, offset);
+
     /* save images */
     printf ("Saving frames\n");
-    stretchContrast();
     saveFrames(bw);
 
     printf("%2d: elapsed time %f\n", rank, MPI_Wtime() - t);
@@ -389,13 +406,12 @@ static void slaveProcess()
 {
     double t;
     int *sendcount, *offset;
-    int n, bw, intopts[4];
-    real dt, dx, v, realopts[3];
+    int n, intopts[4];
+    real dt, dx, v, realopts[3], m;
     MPI_Bcast(intopts, 4, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(realopts, 3, MPI_FLOAT, 0, MPI_COMM_WORLD);
     NFRAMES = intopts[0];
     n       = intopts[1];
-    bw      = intopts[2];
     N       = intopts[3];
     dt      = realopts[0];
     dx      = realopts[1];
@@ -414,9 +430,17 @@ static void slaveProcess()
     /* initialize system */
     initialize(dx, dt, v, n);
 
+    /* solve the wave equation */
     t = MPI_Wtime();
     solveWave(sendcount, offset);
     printf("%2d: elapsed time %f\n", rank, MPI_Wtime() - t);
+
+    /* do the contrast stretching */
+    MPI_Allreduce(&min, &m, 1, MPI_FLOAT, MPI_MIN, MPI_COMM_WORLD);
+    min = m;
+    MPI_Allreduce(&max, &m, 1, MPI_FLOAT, MPI_MAX, MPI_COMM_WORLD);
+    max = m;
+    stretchContrast(sendcount, offset);
 }
 
 int main (int argc, char **argv)
@@ -435,6 +459,6 @@ int main (int argc, char **argv)
     {
         slaveProcess();
     }
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Finalize();
     return EXIT_SUCCESS;
 }
