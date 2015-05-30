@@ -38,12 +38,17 @@
 
 \section{Exercise 1}
 \begin{enumerate}[(a)]
-	\item When cutting the interval into equal chunks we obtain the results in \autoref{tbl:prime}. When using multiple processors we can see that there is a discrepancy in the runtime for different processes. The longest runtime can be four times as high as the lowest runtime. The cause of this is quite obvious, if there are two processes then one will work on the interval $[1, \ldots, 2.5 \cdot 10^7]$ while the other will work on the interval $[2.5 \cdot 10^7, \ldots, 5 \cdot 10^7]$. This means that the first process will need to check roughly $\sqrt{\sum_{n=1}^{2.5 \cdot 10^7}n} \approx 1.7 \cdot 10^7$ numbers, the second process needs to check $\sqrt{\sum_{n=2.5\cdot 10^7}^{5\cdot 10^7}n} \approx 3 \cdot 10^7$ numbers in total in the \texttt{isPrime} function. This is almost a doubling of the amount of possible divisors to check and we can see that the runtime is also almost double from \autoref{tbl:prime}. Once the process with the largest numbers in its interval is done the program will also complete after displaying the total number of primes.
-	\item We used the master-worker model as our parallelization strategy. The master process sends out small parts of the interval to different workers which will then work on calculating the number of primes. When all work has been distributed a termination signal will be send to each worker and the worker processes will send their results back to the master process upon receiving the termination signal.
+	\item When cutting the interval into equal chunks we obtain the results in \autoref{tbl:prime}. The code to share the work can be found in \autoref{code:prime1sharing}. The master process splits the entire $[a, b]$ interval into equally sized sections and sends them out to all the different slaves. After this each process will work on its sub-interval, we didn't have to change any code to do this since the original code also worked with calculating ranges. Finally the results are shared via a simple \texttt{MPI\_Reduce} and the master thread outputs the result as \autoref{code:prime1finish} shows.
+	\lstinputlisting[firstline=33,lastline=59, label={code:prime1sharing},caption={Work sharing code for the static domain decomposition}]{prime/prime.c}
+	\lstinputlisting[firstline=80,lastline=82, label={code:prime1finish}, caption={Result sharing code for the static domain decomposition}]{prime/prime.c}
+	
+	From \autoref{tbl:prime} we can see that when using multiple processors we can see that there is a discrepancy in the runtime for different processes. The longest runtime can be four times as high as the lowest runtime. The cause of this is quite obvious, if there are two processes then one will work on the interval $[1, \ldots, 2.5 \cdot 10^7]$ while the other will work on the interval $[2.5 \cdot 10^7, \ldots, 5 \cdot 10^7]$. This means that the first process will need to check roughly $\sqrt{\sum_{n=1}^{2.5 \cdot 10^7}n} \approx 1.7 \cdot 10^7$ numbers, the second process needs to check $\sqrt{\sum_{n=2.5\cdot 10^7}^{5\cdot 10^7}n} \approx 3 \cdot 10^7$ numbers in total in the \texttt{isPrime} function. This is almost a doubling of the amount of possible divisors to check and we can see that the runtime is also almost double from \autoref{tbl:prime}. Once the process with the largest numbers in its interval is done the program will also complete after displaying the total number of primes.
+	
+	\item We used the master-worker model as our parallelization strategy. The master process sends out small parts of the interval to different workers which will then work on calculating the number of primes. When all work has been distributed a termination signal will be send to each worker and the worker processes will send their results back to the master process upon receiving the termination signal. The code can be found in \autoref{code:prime2}.
 	
 	Special care has been taken to ensure the ordering of messages to ensure that workers don't accidentally ignore work because they received the termination signal early. This happened during some of the early test runs so we took the time to fix this without having to fundamentally change how our program works.
 	
-	Because of the way that communication works the master process doesn't actually do any work on finding the number of primes. Therefore there is no data for 1 process in \autoref{tbl:prime2} since it would never complete. From \autoref{tbl:prime2} we can see that the speed-up is a lot higher than in \autoref{tbl:prime}. It should be noted that there is effectively one process less working on the problem than the table states so the achieved speed-up would be higher if all the processes would've been working on the problem. In \autoref{tbl:prime2} we also see that the difference in highest and lowest runtime is about 100ms so the load is a lot better balanced amongst the processors as none of them finishes early.
+	Because of the way that communication works the master process doesn't actually do any work on finding the number of primes. Therefore there is no data for 1 process in \autoref{tbl:prime2} since it would never complete. From \autoref{tbl:prime2} we can see that the speed-up is a lot higher than in \autoref{tbl:prime}. It should be noted that there is effectively one process less working on the problem than the table states so the achieved speed-up would be higher if all the processes would've been working on the problem. In \autoref{tbl:prime2} we also see that the difference in highest and lowest runtime is about 100ms so the load is a lot better balanced amongst the processors as none of them finishes while another process has a lot more work to do.
 \end{enumerate}
 
 \begin{table}[h]
@@ -77,11 +82,25 @@
 
 \section{Mandelbrot fractal}
 \begin{enumerate}[(a)]
-	\item Runtimes are displayed per process in \autoref{tbl:mandelbrot}. Each column shows the runtime for each process for a given number of processors. The total runtime for the program is displayed at the bottom. We can see that the columns follow a certain symmetry: the first and last process have the lowest running time while the processes in the middle have the highest running time. The difference in running time is very large when the number of processes grows!
+	\item Because the exact size of the output is known we can simply calculate which part a process has to do based on its rank. We decided to split the image up into horizontal sections since calculating the image is done in a scanline fashion. Each thread will process a block of lines in the image. Determining which part of the image a process needs to calculate is shown in \autoref{code:mandelbrot1split}. We also needed to adjust the \texttt{mandelbrotSet} function since it was not designed to be ran in parallel, if we wouldn't do this then each process would calculate the entire image instead of just a small section. The code for this function can be found in \autoref{code:mandelbrot1set}.
+	\lstinputlisting[firstline=150,lastline=157,label={code:mandelbrot1split},caption={Determining the section of the Mandelbrot image a thread needs to calculate.}]{mandelbrot/mandelbrot.c}
+	\lstinputlisting[firstline=109,lastline=136,label={code:mandelbrot1set},caption={The \texttt{mandelbrotSet} function}]{mandelbrot/mandelbrot.c}
+	
+	Finally we need to merge all the partial images. This is done line by line since we didn't adjust the way images are stored to send blocks of the data. The code to merge is found in \autoref{code:mandelbrot1merge}
+	\lstinputlisting[firstline=159,lastline=171,label={code:mandelbrot1merge},caption={Merging the results of the Mandelbrot Set calculating processes.}]{mandelbrot/mandelbrot.c}
+		
+	Runtimes are displayed per process in \autoref{tbl:mandelbrot}. Each column shows the runtime for each process for a given number of processors. The total runtime for the program is displayed at the bottom. We can see that the columns follow a certain symmetry: the first and last process have the lowest running time while the processes in the middle have the highest running time. The difference in running time is very large when the number of processes grows!
 	
 	This phenomenon is caused by how we distribute the work. We split the image up in $N$ rows (where $N$ is the number of processes) that are of equal size. From \autoref{fig:mandelbrot} we can see that the complexity at the top and the bottom of the fractal is a lot lower than the complexity in the middle. \autoref{tbl:mandelbrotcalc} shows the image split up into 8 sections, listing the number of iterations required to calculate each section. From this we can see that first and last process have a lot less work to do ($x^2 + y^2 > 10$ is satisfied in fewer iterations). A better solution would be to distribute work in such a way that each process has to deal with the same amount of complexity.
 	
-	\item When we change the program so that there is a master process that delegates work to slave processes then we obtain results found in \autoref{tbl:mandelbrot2}. Just like with \autoref*{tbl:prime2} there is no time for 1 process because the master doesn't do any work itself. As we can see from \autoref{tbl:mandelbrot2} the times for each process are a lot better balanced. Most processes take an equal amount of time to complete, with the exception of the master process. This is because the time to write the image is also taken included in this time so it will always take longer than the threads that only need to do the calculations.
+	\item To better balance the load across the different processes we opted for the master-slave model. Process 0 is now a process that only works on distributing work to the various slaves. This means that there must be at least 2 processes to run the program, otherwise the master will endlessly wait until a slave requests some work but this will never happen because there are no slaves if there is just 1 process.
+	
+	We use a very simple model, a slave returns the data for a line in the image, the master stores it and sends the number of a new line to work on. This process repeats until all lines have been send out, in this case the master sends a kill signal to the slaves so they know they can stop. When all slaves have been send a kill signal the master will also stop. This leaves just one problem, the slaves don't know which line they should start to work on since they will only get a line number in response to delivering a result. This was solved by having the slaves send an invalid line number, which the master process will not store in the final image but it will send a command to the slave process so it knows on which line to work. The code that does this can be found below in \autoref{code:mandelbrot2sharing}. We also removed the outer for-loop from the \texttt{mandelbrotSet} function since it is not needed anymore as it will operate on a line-by-line basis. It now takes an extra argument that specifies which line should be calculated.
+	
+	\lstinputlisting[firstline=193,lastline=236,label={code:mandelbrot2sharing},caption={Load balancing code for the Mandelbrot Set calculation}]{mandelbrot/mandelbrot2.c}
+	\lstinputlisting[firstline=153,lastline=177,label={code:mandelbrot2set},caption={The function which calculates a part of the image has also been changed.}]{mandelbrot/mandelbrot2.c}
+	
+	The runtime results for this code are found in \autoref{tbl:mandelbrot2}. Just like with \autoref*{tbl:prime2} there is no time for 1 process because the master doesn't do any work itself. As we can see from \autoref{tbl:mandelbrot2} the times for each process are a lot better balanced. Most processes take an equal amount of time to complete, with the exception of the master process. This is because the time to write the image is also taken included in this time so it will always take longer than the threads that only need to do the calculations.
 \end{enumerate}
 
 \begin{table}[h]
@@ -106,7 +125,7 @@
 	\end{tabular}
 \end{table}
 
-\begin{figure}
+\begin{figure}[h!]
 	\centering
 	\includegraphics[width=.75\textwidth]{mandelbrot/mandelbrot.png}
 	\caption{Final render of the Mandelbrot fractal}
@@ -153,7 +172,32 @@
 
 \section{Volume rendering}
 \begin{enumerate}[(a)]
-	\setcounter{enumi}{1}
+	\item To make a parallel version of the program we had to do several things. The first was changing the way that images and 3D data is stored in memory so that it is easier for MPI to send it between different processes. The new structures are shown in \autoref{code:renderstruct}. The code for allocating and freeing memory is shown in \autoref{code:rendermalloc}. Most of this code can also be found on the hints page on Nestor, but we had to roll our own deallocation routines.
+	
+	\lstinputlisting[firstline=25,lastline=39,label={code:renderstruct},caption={Updated structures to support sending data between processes}]{volumerender/render.c}
+	\lstinputlisting[firstline=59,lastline=108,label={code:rendermalloc},caption={Updated memory allocation and deallocation routines to work with the new memory structure.}]{volumerender/render.c}
+	
+	Rendering a frame of the animation doesn't depend on the last frame but only on the number of the frame and the volume data. Because of this it is easiest to parallelize the program by making threads rendering single frames. Again we went for a master-slave model where the master does nothing but delegate the work to the slaves, this means that at least two processes are necessary to complete the task.
+	
+	The master starts by allocating memory to keep track of which slave is working on which frame. Results are received asynchronously so there is also a need to keep track of whether a slave has send its result. After this is done the master process reads the volume data and sends it to the slave processes. The code for allocating and sending the data is shown in \autoref{code:rendermasterinit}, the slave process code for receiving the dat is shown in \autoref{code:renderslaveinit}.
+	
+	\lstinputlisting[firstline=351,lastline=372,label={code:rendermasterinit},caption={Master process code for allocating memory for bookkeeping and loading and distributing the volume data}]{volumerender/render.c}
+	\lstinputlisting[firstline=416,lastline=434,label={code:renderslaveinit},caption={Slave process code for retrieving the volume data.}]{volumerender/render.c}
+	
+	Next the master needs to initialise the asynchronous communication and at the same time it sends out the initial frames for the slave processes to work on (see \autoref{code:rendermasterrecv}). Note that we had to start receiving on the \texttt{MPI\_Request} belonging to the master because \texttt{MPI\_Waitany} doesn't support uninitialised requests. We then have to make sure that no initial frame is send to the master process because it doesn't do any work (and it would also cause the master process to freeze).
+	
+	\lstinputlisting[firstline=374,lastline=384,label={code:rendermasterrecv},caption={The master process starts receiving data asynchronously and hands out the first tasks.}]{volumerender/render.c}
+	
+	The master then starts its main loop where it waits for a slave process to return a result. The first thing that is done is responding to the result by handing a new task or by sending a kill signal to the slave process when all the work has been handed out. After doing this the master process writes the received data to file. At first this was done the other way around, but this led to a small speed penalty because a slave process would have to wait for the master process to finish writing the file before it could start working on the next frame. Now a slave can start doing more work right away. The code that orchestrates all of this can be viewed in \autoref{code:rendermastermainloop}.
+	
+	\lstinputlisting[firstline=386,lastline=408,label={code:rendermastermainloop}, caption={The master handles result data and sends out a new task at the same time.}]{volumerender/render.c}
+	
+	In the mean time the slave processes calculate frames as long as tasks are being received. They do no asynchronous communication because they only communicate with the master process so there is no harm in having to wait for communication or work to finish since they can't do anything else in the mean time. The main loop for slave processes is shown in \autoref{code:renderslavemainloop}
+	
+	\lstinputlisting[firstline=437,lastline=454,label={code:renderslavemainloop}, caption={The slave calculates frame data as tasks are being received.}]{volumerender/render.c}
+	
+	After this only clean-up is needed for all processes.
+	
 	\item Timing results for the $128 \times 128 \times 128$ input file can be found in \autoref{tbl:render}. The first thing of note is that there is a small speed-up with just two threads, this is slightly odd because there is still only one process doing all the calculations. The master process is doing all the disk IO though, so the thread which is calculating the data doesn't have to wait for a hard drive before it can start calculating again. This small concurrency is enough to be a small enough speed-up. The speed up between 8 and 12 processes is not very large, this is most likely due to processes needing to wait for the master to write another processes' result to the disk before it will hand out a new task to that process. This means that slaves are waiting on the master thread a sizeable portion of the time.
 	
 	Another remarkable thing is that the change in speed up going from 4 to 8 processes is very large! There doesn't seem to be a good explanation for this. The most likely cause is that with 8 processes the communication between the master and the slaves is just rightly balanced so that slaves don't really have to wait for each other to finish communicating with the master, they also don't have to wait that long for the master to finish writing the received data to a file.
@@ -190,5 +234,27 @@
 		12 &   37.75 &   39.48 & 8.61
 	\end{tabular}
 \end{table}
+
+\section{Solving the wave equation}
+
+\clearpage
+\appendix
+\section{Full program code}
+\subsection{Program code for prime number search}
+\lstinputlisting[label={code:prime1}, caption={Code for prime search by static domain decomposition}]{prime/prime.c}
+\lstinputlisting[label={code:prime2}, caption={Code for prime search using load balancing}]{prime/prime2.c}
+
+\subsection{Code for contrast stretching}
+\lstinputlisting[label={code:contrast}, caption={Code for contrast stretching}]{contrast/contrast.c}
+
+\subsection{Code for mandelbrot fractal}
+\lstinputlisting[label={code:mandelbrot}, caption={Code for calculating the Mandelbrot fractal using static domain decomposition}]{mandelbrot/mandelbrot.c}
+\lstinputlisting[label={code:mandelbrot2}, caption={Code for calculating the Mandelbrot fractal using one process to hand out work and the others doing the actual work}]{mandelbrot/mandelbrot2.c}
+
+\subsection{Code for volume rendering}
+\lstinputlisting[label={code:volume}, caption={Code to render the rotation of a volume}]{volumerender/render.c}
+
+\subsection{Code for solving the wave equation}
+\lstinputlisting[label={code:wave}, caption={Code to solve the wave equation in parallel}]{wave/wave.c}
 
 \end{document}

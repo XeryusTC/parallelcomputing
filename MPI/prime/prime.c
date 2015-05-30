@@ -22,7 +22,8 @@ static int isPrime(unsigned int p)
 
 int main (int argc, char **argv)
 {
-	unsigned int i, a, b, cnt=0, interval, size, rank, message[2];
+	unsigned int i, a, b, cnt=0, interval, message[2], tot;
+	int size, rank;
 	MPI_Status info;
 	double t;
 
@@ -76,21 +77,9 @@ int main (int argc, char **argv)
 			cnt++;
 	printf("Time spend in %2d: %f\n", rank, MPI_Wtime() - t);
 
-	/* MASTER */
+	MPI_Reduce(&cnt, &tot, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 	if (rank == 0)
-	{
-		for (i=1; i<size; ++i)
-		{
-			MPI_Recv(message, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &info);
-			cnt += message[0];
-		}
-		printf ("\n#primes=%u\n", cnt);
-	}
-	/* SLAVE */
-	else
-	{
-		MPI_Send(&cnt, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-	}
+		printf ("\n#primes=%u\n", tot);
 
 	MPI_Finalize();
 	return 0;

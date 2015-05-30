@@ -15,7 +15,7 @@
 
 #define MAXITER 3000
 
-int rank, size, interval, start;
+int rank, size;
 unsigned char colour[MAXITER][3];  /* colour look-up table */
 
 /* Data type for storing 2D greyscale image */
@@ -190,14 +190,10 @@ int main(int argc, char **argv)
 
     mandelbrot = makeImage(WIDTH, HEIGHT);
 
-    interval = mandelbrot->height / size;
-    start = rank * interval;
-    running = size - 1;
-
-
     /* reconstruct image */
     t = MPI_Wtime();
     if (rank == 0) {
+    	running = size - 1;
         i = 0;
         while (running > 0) {
             MPI_Recv(data, mandelbrot->width, MPI_INT, MPI_ANY_SOURCE,

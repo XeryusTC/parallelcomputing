@@ -66,9 +66,7 @@ static Image makeImage(int w, int h)
     im->imdata = safeMalloc(h*sizeof(int *));
     im->imdata[0] = safeMalloc(h*w*sizeof(int));
     for (row = 1; row < h; row++)
-    {
         im->imdata[row] = im->imdata[0] + row * w;
-    }
     return im;
 }
 
@@ -96,9 +94,7 @@ static Volume makeVolume(int w, int h, int d)
         shw = slice * h * w;
         vol->voldata[slice] = vol->voldata2d + h * slice;
         for (row = 0; row < h; row++)
-        {
             vol->voldata[slice][row] = vol->voldata3d + shw + row * w;
-        }
     }
     return vol;
 }
