@@ -79,7 +79,39 @@
 \end{table}
 
 \section{Contrast stretching}
+\begin{enumerate} [(a)]
+	\item We created a function $masterProcess$ which is only called by the root process, to read the image file and distribute the workload to all the processes, including the root process itself. We use the MPI function $scatterv$ 
+	for this. Scatterv sends only a part of the whole datablock,defined by the user-specified size, to all other processes instead of all data, which makes it more memory efficient. First however we need to determine the data to be send, and how large the blocks are. With the routine:
+	\lstinputlisting[firstline=183,lastline=193,label={code:contrast},caption={Work division and sending}]{contrast/contrast.c}
+	we divide the array with the pixeldata in equal chunks and send the size of those chunks to the slave processes. When the dividing does not yield equal chunks, the last chunk is shortened.
+ 
+	With a $MPI_Allreduce$ operation:
+	\lstinputlisting[firstline=199,lastline=203,label={code:contrast},caption={Calculate and broadcast minimal and maximum pixel values}]{contrast/contrast.c}
+	We reduce the minimum and maximum pixel values and rebroadcast them to all processes, so each process holds its own datablock, but with the proper pixel values. Each process can now recalculate the pixelvalues of its own datablock.
+	A function $slaveProcess/$ is created where all processes other than the root handles its data and calculations. Because the root scatters the data and reduces en rebroadcasts the minimum and maximum pixelvalues, for each slave process the sending and retreiving of this data has to be aranged, using the same functions $MPI_scatterv$ and $MPI_gatherv$. After contrast stretching, we can now retrieve the data to the root with a $MPI_Gatherv$ operation:
+	\lstinputlisting[firstline=232,lastline=233]{contrast/contrast.c} 
+	In the $slaveProcess$, the function $MPI_Gatherv$, is also used to send the results to the root. The root is now able to write the image.
+	 \item The MPI function $MPI_Wtime()$ can be used to calculate the times each process runs. It returns the elapsed time from some fixed point. Each process wil have its own instance. We measure the time after each process is finished calculating its data and has send it back tot the root: 
+	\lstinputlisting[firstline=250,lastline=256]{contrast/contrast.c} 
+	
+	\item Runnig the contrast stretch program on the 12-core millipede cluster with the kdk.pgm image file gives us the following calculation times with different threads, for the smallest time a thread is working and the longest time a thread is working:
 
+\begin{table}[h]
+	\centering
+	\caption{Runtimes for contrast stretching a pgm image.}
+	\label{tbl:contrast}
+	\begin{tabular}{l|r|r|r}
+		Processes & Lowest time & Highest time(root) & Speed-up \\ \hline
+		 1 & 12.3 & 12.3 & none       \\
+		 2 & 5.6 & 10.2. & 20 percent \\
+		 4 & 4.2 & 9.2   & 33 percent \\
+		 8 &  3.5 & 8.5  & 44 percent \\
+		12 &  3.2 & 8.3 &  48 percent\\
+	\end{tabular}
+\end{table}
+The highest timings for a thread is always for the root process, since this is the one starting, dividing, integrating the workload and outputting the end result. Increasing the number of processes by far does not linearly scale with the corresponding maximum time.The cause is that only a part of the work is parallelized. The root process also takes advantage of this, but the difference is quite small, especially with larger number of threads. Also the communication to and from processes take more time with increasing numbers of processes.The main workload which is parallelized(lowest times) scale better with increasing processes, since this part is almost fully parallelized. Communication oerhead also impedes the speed here however. 
+
+\end{enumerate}
 \section{Mandelbrot fractal}
 \begin{enumerate}[(a)]
 	\item Because the exact size of the output is known we can simply calculate which part a process has to do based on its rank. We decided to split the image up into horizontal sections since calculating the image is done in a scanline fashion. Each thread will process a block of lines in the image. Determining which part of the image a process needs to calculate is shown in \autoref{code:mandelbrot1split}. We also needed to adjust the \texttt{mandelbrotSet} function since it was not designed to be ran in parallel, if we wouldn't do this then each process would calculate the entire image instead of just a small section. The code for this function can be found in \autoref{code:mandelbrot1set}.
@@ -236,6 +268,40 @@
 \end{table}
 
 \section{Solving the wave equation}
+As in some of the other programs of these assignments, we create a master process and slave process(es), where the master process distributes the work to the slave processes and also gathers the finished work from these slave processes. The main question here is which part, which data, is most efficient to parallelize. Since a standard or user defines number of frames have to be calculated, and each frame is dependent on the previous frame, we cannot divide a subset of the frames between the processes. Therefore we divide the calculation work for 1 frame between the processes. Since the size of the frame is determined by the number of grid cells $n$, we base the division of work on the grid size and distribute equal parts of it to the processes. The other settings for the frames are the same for each process, so we broadcast those to all processes with the following code:
+\lstinputlisting[firstline=359,lastline=362,label={code:wavesettings},caption={Send all settings to slaves}]{wave/wave.c}
+The worksize is determined based on $n$ and divided equally. If the worksize cannot be split in equal chunks, the last process gets the smallest part. Buffers of the correct size for receiving the work are also allocated:
+\lstinputlisting[firstline=364,lastline=380,label={code:wavesettings},caption={Work division and sending}]{wave/wave.c}
+Then each process has to calculate its part by calling the $solveWAve$ and $contrastStretch$ function. The master process does this in the $masterProcess$ function and the slaves in the $slaveProcess$ function  Also a timer is used to obtain the time each process is takes to solve the wave equation. 
+\lstinputlisting[firstline=386,lastline=396,label={code:wavesettings},caption={Call for wave solvation and contrast stretching}]{wave/wave.c}
+Each process which has solved its part of the wave equation and the contrast stretching of a particular frame, copies it into an allocated block of memory called $data$ at the right position, after which al the data of one frame is send back to the all processes with $MPI_Gatherv$, so each process is able to calculate its part for the next frame, based on the previous one. For the solved wave:
+\lstinputlisting[firstline=167,lastline=169,label={code:wavesettings},caption={Send solved wave data to other processes}]{wave/wave.c}
+And for the contrast stretching:
+\lstinputlisting[firstline=205,lastline=207,label={code:wavesettings},caption={Send contrast stretch data to other processes}]{wave/wave.c}
+After all frames are calculated, the master process saves the frames with the $saveFrame$ function. All the used memory is released then.
+
+
+Timing results, averages of 5 runs on the 12-core millipede cluster, can be found in \autoref{tbl:wavetime}
+
+\begin{table}[h]
+	\centering
+	\caption{Runtime for solving the wave equation, with average time per process and total duration including saving all frames by the master process.}
+	\label{tbl:wavetime}
+	\begin{tabular}{r|r|r|r}
+		Processes & Process time & Total time & Speed up \\ \hline
+		 1 & & 9.2 & \\
+		 2 & 2.0 & 7.0 & 31 percent \\
+		 4 & 1.8 & 8.5 & 8 percent \\
+		 8 & 1.5 & 8.0 & 15 percent \\
+		12 & 1.1 & 6.0 & 53 percent 
+	\end{tabular}
+\end{table}
+
+The speedup on the millipede cluster is somewhat irregular for the runs with multiple processes. The difference in timing for each process, doing the calculations, are quite scalable. With each increase of processes, the calculation time of each separate non-root process becomes smaller. The total timing, where the root process is also saving the frames is more irregular, but times are smaller with larger numbers of processes. We also run this on a home computer with 4-cores(data not shown), which shows the same pattern with the time for each process, however the total time only decreases from 1 to 2 processes. With 3 and 4 processes total times is equal as when run with 2 processes. These effects are probably seen because of the increase in the amount data which has to distributes as the number of processes increase. We also noted a increasing memory usage with increasing number of processes.
+
+
+
+
 
 \clearpage
 \appendix
