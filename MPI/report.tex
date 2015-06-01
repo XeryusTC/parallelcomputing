@@ -214,19 +214,19 @@ The highest timings for a thread is always for the root process, since this is t
 	The master starts by allocating memory to keep track of which slave is working on which frame. Results are received asynchronously so there is also a need to keep track of whether a slave has send its result. After this is done the master process reads the volume data and sends it to the slave processes. The code for allocating and sending the data is shown in \autoref{code:rendermasterinit}, the slave process code for receiving the dat is shown in \autoref{code:renderslaveinit}.
 	
 	\lstinputlisting[firstline=351,lastline=372,label={code:rendermasterinit},caption={Master process code for allocating memory for bookkeeping and loading and distributing the volume data}]{volumerender/render.c}
-	\lstinputlisting[firstline=416,lastline=434,label={code:renderslaveinit},caption={Slave process code for retrieving the volume data.}]{volumerender/render.c}
+	\lstinputlisting[firstline=417,lastline=433,label={code:renderslaveinit},caption={Slave process code for retrieving the volume data.}]{volumerender/render.c}
 	
 	Next the master needs to initialise the asynchronous communication and at the same time it sends out the initial frames for the slave processes to work on (see \autoref{code:rendermasterrecv}). Note that we had to start receiving on the \texttt{MPI\_Request} belonging to the master because \texttt{MPI\_Waitany} doesn't support uninitialised requests. We then have to make sure that no initial frame is send to the master process because it doesn't do any work (and it would also cause the master process to freeze).
 	
-	\lstinputlisting[firstline=374,lastline=384,label={code:rendermasterrecv},caption={The master process starts receiving data asynchronously and hands out the first tasks.}]{volumerender/render.c}
+	\lstinputlisting[firstline=374,lastline=383,label={code:rendermasterrecv},caption={The master process starts receiving data asynchronously and hands out the first tasks.}]{volumerender/render.c}
 	
 	The master then starts its main loop where it waits for a slave process to return a result. The first thing that is done is responding to the result by handing a new task or by sending a kill signal to the slave process when all the work has been handed out. After doing this the master process writes the received data to file. At first this was done the other way around, but this led to a small speed penalty because a slave process would have to wait for the master process to finish writing the file before it could start working on the next frame. Now a slave can start doing more work right away. The code that orchestrates all of this can be viewed in \autoref{code:rendermastermainloop}.
 	
-	\lstinputlisting[firstline=386,lastline=408,label={code:rendermastermainloop}, caption={The master handles result data and sends out a new task at the same time.}]{volumerender/render.c}
+	\lstinputlisting[firstline=385,lastline=407,label={code:rendermastermainloop}, caption={The master handles result data and sends out a new task at the same time.}]{volumerender/render.c}
 	
 	In the mean time the slave processes calculate frames as long as tasks are being received. They do no asynchronous communication because they only communicate with the master process so there is no harm in having to wait for communication or work to finish since they can't do anything else in the mean time. The main loop for slave processes is shown in \autoref{code:renderslavemainloop}
 	
-	\lstinputlisting[firstline=437,lastline=454,label={code:renderslavemainloop}, caption={The slave calculates frame data as tasks are being received.}]{volumerender/render.c}
+	\lstinputlisting[firstline=436,lastline=453,label={code:renderslavemainloop}, caption={The slave calculates frame data as tasks are being received.}]{volumerender/render.c}
 	
 	After this only clean-up is needed for all processes.
 	
@@ -290,10 +290,10 @@ Timing results, averages of 5 runs on the 12-core millipede cluster, can be foun
 	\begin{tabular}{r|r|r|r}
 		Processes & Process time & Total time & Speed up \\ \hline
 		 1 & & 9.2 & \\
-		 2 & 2.0 & 7.0 & 31 percent \\
-		 4 & 1.8 & 8.5 & 8 percent \\
-		 8 & 1.5 & 8.0 & 15 percent \\
-		12 & 1.1 & 6.0 & 53 percent 
+		 2 & 2.0 & 7.0 & 31\% \\
+		 4 & 1.8 & 8.5 & 8\% \\
+		 8 & 1.5 & 8.0 & 15\% \\
+		12 & 1.1 & 6.0 & 53\% 
 	\end{tabular}
 \end{table}
 
