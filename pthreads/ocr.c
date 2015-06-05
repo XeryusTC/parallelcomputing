@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
+#include "stringbuffer.h"
 
 #define FALSE 0
 #define TRUE  1
