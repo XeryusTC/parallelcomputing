@@ -377,7 +377,7 @@ static int findCharacter(int background, Image image,
 }
 
 static void characterSegmentation(int background,
-        int row0, int row1, Image image)
+        int row0, int row1, Image image, String *str)
 { /* Segment a linestrip into characters and perform
    * character matching using a Pearson correlator.
    * This routine also prints the output characters.
@@ -392,7 +392,7 @@ static void characterSegmentation(int background,
             int i;
             for (i = 0; i < (int)((col0-prev)/(1.1*charwidth)); i++)
             {
-                printf (" ");
+                appendString(str, ' ');
             }
         }
         /* match character */
@@ -400,10 +400,12 @@ static void characterSegmentation(int background,
         match = PearsonCorrelator(token);
         if (match >= 0)
         {
-            printf ("%c", symbols[match]);
+            appendString(str, symbols[match]);
         } else
         {
-            printf ("#%c#", symbols[-match]);
+            appendString(str, '#');
+            appendString(str, symbols[-match]);
+            appendString(str, '#');
         }
 #if 1
         {
@@ -462,6 +464,7 @@ static void lineSegmentation(int background, Image page)
 { /* Segments a page into line strips. For each line strip
    * the character recognition pipeline is started.
    */
+    String *str = newEmptyString(80);
     int row1, row0=0, prev=0;
     while (findLineStrip(background, &row0, &row1, page))
     {
@@ -471,14 +474,16 @@ static void lineSegmentation(int background, Image page)
             int i;
             for (i = 0; i < (int)((row0 - prev)/(1.2*charheight)); i++)
             {
-                printf ("\n");
+                appendString(str, '\n');
             }
         }
         /* separate characters in line strip */
-        characterSegmentation(background, row0, row1, page);
+        characterSegmentation(background, row0, row1, page, str);
         row0 = prev = row1;
-        printf ("\n");
+        appendString(str, '\n');
     }
+    printf(str->str);
+    freeString(str);
 #if 0
     /* You can enable this code fragment for debugging purposes */
     writePGM(page, "segmentation.pgm");
