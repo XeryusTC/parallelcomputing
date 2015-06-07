@@ -4,7 +4,7 @@
  * A simple OCR demo program.
  */
 
-
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -23,13 +23,6 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
 #define CORRTHRESHOLD 0.95
-
-/* Data type for storing 2D greyscale image */
-typedef struct imagestruct
-{
-    int width, height;
-    int **imdata;
-} *Image;
 
 int charwidth, charheight;  /* width an height of templates/masks */
 
@@ -55,7 +48,7 @@ static void *safeMalloc(int n)
     return ptr;
 }
 
-static Image makeImage(int w, int h)
+Image makeImage(int w, int h)
 { /* routine for constructing (memory allocation) of images */
     Image im;
     int row;
@@ -71,7 +64,7 @@ static Image makeImage(int w, int h)
     return im;
 }
 
-static void freeImage(Image im)
+void freeImage(Image im)
 { /* routine for deallocating memory occupied by an image */
 	free(im->imdata[0]);
 	free(im->imdata);
@@ -376,12 +369,12 @@ static int findCharacter(int background, Image image,
 }
 
 static void characterSegmentation(int background,
-        int row0, int row1, Image image, String *str)
+        int row0, int row1, Image image, ImageString imstr)
 { /* Segment a linestrip into characters and perform
    * character matching using a Pearson correlator.
    * This routine also prints the output characters.
    */
-    int match, col1, prev=0, col0=0;
+    int col1, prev=0, col0=0;
     Image token = makeImage(charwidth, charheight);
     while (findCharacter(background, image, row0, row1, &col0, &col1))
     {
@@ -391,42 +384,12 @@ static void characterSegmentation(int background,
             int i;
             for (i = 0; i < (int)((col0-prev)/(1.1*charwidth)); i++)
             {
-                appendString(str, ' ');
+				imageStringAppendChar(imstr, ' ');
             }
         }
         /* match character */
         makeCharImage(row0, col0, row1, col1, background, image, token);
-        match = PearsonCorrelator(token);
-        if (match >= 0)
-        {
-            appendString(str, symbols[match]);
-        } else
-        {
-            appendString(str, '#');
-            appendString(str, symbols[-match]);
-            appendString(str, '#');
-        }
-#if 1
-        {
-            /* Mark bounding box of character.
-             * This can be turned on for debugging pruposes.
-             * In combination with writePGM it is possible
-             * to write the 'segmnented' image to a file.
-             */
-            int **im=image->imdata;
-            int r, c;
-            for (r = row0; r < row1; r++)
-            {
-                for (c = col0; c < col1; c++)
-                {
-                    if (im[r][c] == background)
-                    {
-                        im[r][c] = 128;
-                    }
-                }
-            }
-        }
-#endif
+		imageStringAppendImage(imstr, token);
         col0 = prev = col1;
     }
     freeImage(token);
@@ -459,11 +422,11 @@ static int findLineStrip (int background, int *row0, int *row1,
     return (*row0 < *row1 ? TRUE : FALSE);
 }
 
-static void lineSegmentation(int background, Image page)
+static ImageString lineSegmentation(int background, Image page)
 { /* Segments a page into line strips. For each line strip
    * the character recognition pipeline is started.
    */
-    String *str = newEmptyString(80);
+	ImageString imstr = newImageString(16);
     int row1, row0=0, prev=0;
     while (findLineStrip(background, &row0, &row1, page))
     {
@@ -473,20 +436,19 @@ static void lineSegmentation(int background, Image page)
             int i;
             for (i = 0; i < (int)((row0 - prev)/(1.2*charheight)); i++)
             {
-                appendString(str, '\n');
+                imageStringAppendChar(imstr, '\n');
             }
         }
         /* separate characters in line strip */
-        characterSegmentation(background, row0, row1, page, str);
+        characterSegmentation(background, row0, row1, page, imstr);
         row0 = prev = row1;
-        appendString(str, '\n');
+        imageStringAppendChar(imstr, '\n');
     }
-    printf(str->str);
-    freeString(str);
 #if 0
     /* You can enable this code fragment for debugging purposes */
     writePGM(page, "segmentation.pgm");
 #endif
+	return imstr;
 }
 
 static void constructAlphabetMasks()
@@ -561,6 +523,8 @@ enum MUTEXES {
 	MX_OUTPUT_COUNTER,
     MX_RAW_IMAGE,
 	MX_THRESHOLD_IMAGE,
+	MX_SEGMENTED_IMAGE,
+	MX_CORRELATED_IMAGE,
     NUM_MUTEXES
 };
 
@@ -569,12 +533,18 @@ enum CONDITIONS {
     COND_THRESHOLD_WAITING,
 	COND_THRESHOLD_IMAGE_READY,
 	COND_SEGMENT_WAITING,
+	COND_SEGMENT_READY,
+	COND_CORRELATE_WAITING,
+	COND_CORRELATE_READY,
+	COND_OUTPUT_WAITING,
     NUM_CONDITIONS
 };
 
 enum SEMAPHORES {
     SEM_RAW_IMAGE,
 	SEM_THRESHOLD_IMAGE,
+	SEM_SEGMENT_IMAGE,
+	SEM_CORRELATED_IMAGE,
     NUM_SEMAPHORES
 };
 
@@ -585,6 +555,10 @@ int correlators = 1;
 int outputs = 1;
 char **ImageList;
 Image rawImage, thresholdImage;
+ImageString segmentedImage;
+String *correlatedString;
+int rawAvailable=FALSE, thresholdAvailable=FALSE, segmentedAvailable=FALSE,
+	correlatedAvailable=FALSE;
 pthread_mutex_t mutex[NUM_MUTEXES];
 pthread_cond_t cond[NUM_CONDITIONS];
 sem_t semaphore[NUM_SEMAPHORES];
@@ -598,11 +572,12 @@ void* stageRead(void *arg)
     {
         /* wait for threshold function to empty the buffer */
         pthread_mutex_lock(&mutex[MX_RAW_IMAGE]);
-        if (rawImage != NULL)
+        if (rawAvailable)
             pthread_cond_wait(&cond[COND_THRESHOLD_WAITING],
                     &mutex[MX_RAW_IMAGE]);
 		printf("Reading %s\n", ImageList[i]);
         rawImage = readPGM(ImageList[i]);
+		rawAvailable = TRUE;
         /* notify threshold threads that we've read an image */
         sem_post(&semaphore[SEM_RAW_IMAGE]);
         pthread_mutex_unlock(&mutex[MX_RAW_IMAGE]);
@@ -618,6 +593,7 @@ void* stageRead(void *arg)
 
 void* stageThreshold(void *arg)
 {
+	int i;
     Image im;
 	while (readers > 0)
 	{
@@ -625,7 +601,7 @@ void* stageThreshold(void *arg)
     	sem_wait(&semaphore[SEM_RAW_IMAGE]);
 	    pthread_mutex_lock(&mutex[MX_RAW_IMAGE]);
 		/* make sure another thread hasn't ready the image before this one */
-		if (rawImage == NULL)
+		if (!rawAvailable)
 		{
 			pthread_mutex_unlock(&mutex[MX_RAW_IMAGE]);
 			continue;
@@ -635,6 +611,7 @@ void* stageThreshold(void *arg)
 		memcpy(im->imdata[0], rawImage->imdata[0],
 				im->width * im->height * sizeof(int));
 	    freeImage(rawImage);
+		rawAvailable = FALSE;
 		/* tell the readers that we are waiting for a new image so they can
 		 * load it while we process it */
     	pthread_cond_signal(&cond[COND_THRESHOLD_WAITING]);
@@ -644,13 +621,14 @@ void* stageThreshold(void *arg)
 
 		/* put the thresholded image in the buffer for the next stage */
 		pthread_mutex_lock(&mutex[MX_THRESHOLD_IMAGE]);
-		if (thresholdImage != NULL)
+		if (thresholdAvailable)
 			pthread_cond_wait(&cond[COND_SEGMENT_WAITING],
 					&mutex[MX_THRESHOLD_IMAGE]);
 		thresholdImage = makeImage(im->width, im->height);
 		memcpy(thresholdImage->imdata[0], im->imdata[0],
 				im->width * im->height * sizeof(int));
 		freeImage(im);
+		thresholdAvailable = TRUE;
 		sem_post(&semaphore[SEM_THRESHOLD_IMAGE]);
 		pthread_mutex_unlock(&mutex[MX_THRESHOLD_IMAGE]);
 	}
@@ -659,30 +637,62 @@ void* stageThreshold(void *arg)
 	thresholders--;
 	pthread_mutex_unlock(&mutex[MX_THRESHOLD_COUNTER]);
 
+	pthread_mutex_lock(&mutex[MX_SEGMENT_COUNTER]);
+	for (i=0; i<segmenters; ++i)
+		sem_post(&semaphore[SEM_THRESHOLD_IMAGE]);
+	pthread_mutex_unlock(&mutex[MX_SEGMENT_COUNTER]);
+
 	printf("Stopping threshold thread\n");
 	return 0;
 }
 
 void* stageSegmentation(void *arg)
 {
+	int i;
 	Image im;
+	ImageString imstr;
 	while (thresholders > 0)
 	{
 		/* wait for a thresholded image to become available */
 		sem_wait(&semaphore[SEM_THRESHOLD_IMAGE]);
 		pthread_mutex_lock(&mutex[MX_THRESHOLD_IMAGE]);
 		/* make sure another thread didn't get the image before us */
-		if (thresholdImage == NULL)
+		if (!thresholdAvailable)
 		{
 			pthread_mutex_unlock(&mutex[MX_THRESHOLD_IMAGE]);
 			continue;
 		}
 		/* copy the image to the local buffer */
 		im = makeImage(thresholdImage->width, thresholdImage->height);
+		memcpy(im->imdata[0], thresholdImage->imdata[0],
+				thresholdImage->width * thresholdImage->height * sizeof(int));
+		freeImage(thresholdImage);
+		thresholdAvailable = FALSE;
+		pthread_cond_signal(&cond[COND_SEGMENT_WAITING]);
 		pthread_mutex_unlock(&mutex[MX_THRESHOLD_IMAGE]);
 
-		printf("Segmenting image\n");
-		free(im);
+		/* segment the image */
+        imstr = lineSegmentation(BACKGROUND, im);
+		freeImage(im);
+
+		pthread_mutex_lock(&mutex[MX_SEGMENTED_IMAGE]);
+		if (segmentedAvailable)
+			pthread_cond_wait(&cond[COND_CORRELATE_WAITING],
+					&mutex[MX_SEGMENTED_IMAGE]);
+		segmentedImage = newImageString(imstr->end);
+		/* copy images and characters to the shared image string */
+		for (i=0; i<imstr->end; ++i)
+		{
+			if (imstr->str[i] == '_')
+				imageStringAppendImage(segmentedImage, imstr->im[i]);
+			else
+				imageStringAppendChar(segmentedImage, imstr->str[i]);
+		}
+		segmentedAvailable = TRUE;
+		sem_post(&semaphore[SEM_SEGMENT_IMAGE]);
+		pthread_mutex_unlock(&mutex[MX_SEGMENTED_IMAGE]);
+
+		freeImageString(imstr);
 	}
 
 	pthread_mutex_lock(&mutex[MX_SEGMENT_COUNTER]);
@@ -695,11 +705,107 @@ void* stageSegmentation(void *arg)
 
 void* stageCorrelation(void *arg)
 {
+	int i, match;
+	ImageString imstr;
+	String *str;
+
+	while(segmenters > 0)
+	{
+		/* wait for a segmented image to become available */
+		sem_wait(&semaphore[SEM_SEGMENT_IMAGE]);
+		pthread_mutex_lock(&mutex[MX_SEGMENTED_IMAGE]);
+		/* make sure another thread didn't get the image string before us */
+		if (!segmentedAvailable)
+		{
+			pthread_mutex_unlock(&mutex[MX_SEGMENTED_IMAGE]);
+			continue;
+		}
+		/* copy the image string to the local buffer */
+		imstr = newImageString(segmentedImage->end);
+		for (i=0; i<segmentedImage->end; ++i)
+		{
+			if (segmentedImage->str[i] == '_')
+				imageStringAppendImage(imstr, segmentedImage->im[i]);
+			else
+				imageStringAppendChar(imstr, segmentedImage->str[i]);
+		}
+		freeImageString(segmentedImage);
+		segmentedAvailable=FALSE;
+		pthread_cond_signal(&cond[COND_CORRELATE_WAITING]);
+		pthread_mutex_unlock(&mutex[MX_SEGMENTED_IMAGE]);
+
+		str = newEmptyString(imstr->end);
+		for (i=0; i<imstr->end; ++i)
+		{
+			if (imstr->str[i] == '_')
+			{
+				match = PearsonCorrelator(imstr->im[i]);
+				if (match >= 0)
+					appendString(str, symbols[match]);
+				else
+				{
+					appendString(str, '#');
+					appendString(str, symbols[-match]);
+					appendString(str, '#');
+				}
+				freeImage(imstr->im[i]);
+			}
+			else
+			{
+				appendString(str, imstr->str[i]);
+			}
+		}
+		freeImageString(imstr);
+
+		/* Send the string to the output stage */
+		pthread_mutex_lock(&mutex[MX_CORRELATED_IMAGE]);
+		if (correlatedAvailable)
+			pthread_cond_wait(&cond[COND_OUTPUT_WAITING],
+					&mutex[MX_CORRELATED_IMAGE]);
+		correlatedString = newEmptyString(str->end);
+		for (i=0; i<str->end; ++i)
+			appendString(correlatedString, str->str[i]);
+		correlatedAvailable = TRUE;
+		freeString(str);
+		sem_post(&semaphore[SEM_CORRELATED_IMAGE]);
+		pthread_mutex_unlock(&mutex[MX_CORRELATED_IMAGE]);
+	}
+
+	pthread_mutex_lock(&mutex[MX_CORRELATE_COUNTER]);
+	correlators--;
+	pthread_mutex_unlock(&mutex[MX_CORRELATE_COUNTER]);
+	printf("Stopping correlation thread\n");
     return 0;
 }
 
 void* stageOutput(void *arg)
 {
+	int i;
+	String *out = newEmptyString(64);
+
+	while (correlators > 0)
+	{
+		/* wait for a new string to become available */
+		sem_wait(&semaphore[SEM_CORRELATED_IMAGE]);
+		pthread_mutex_lock(&mutex[MX_CORRELATED_IMAGE]);
+		if (!correlatedAvailable)
+		{
+			pthread_mutex_unlock(&mutex[MX_CORRELATED_IMAGE]);
+			continue;
+		}
+		for (i=0; i<correlatedString->end; ++i)
+			appendString(out, correlatedString->str[i]);
+		out->str[out->end] = '\n';
+		freeString(correlatedString);
+		correlatedAvailable = FALSE;
+		pthread_cond_signal(&cond[COND_OUTPUT_WAITING]);
+		pthread_mutex_unlock(&mutex[MX_CORRELATED_IMAGE]);
+	}
+	//printf(out->str);
+	printf("Done!\n");
+	freeString(out);
+
+	printf("Stopping output thread\n");
     return 0;
 }
 
@@ -751,7 +857,7 @@ int main(int argc, char **argv)
     }*/
 
     /* destroy threads */
-    for (i=0; i<5; ++i)
+    for (i=0; i<tid; ++i)
         pthread_join(tids[i], &exit_status);
     for (i=0; i<NUM_MUTEXES; ++i)
         pthread_mutex_destroy(&mutex[i]);
