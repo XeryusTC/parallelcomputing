@@ -587,6 +587,11 @@ void* stageRead(void *arg)
 	readers--;
 	pthread_mutex_unlock(&mutex[MX_READER_COUNTER]);
 
+    pthread_mutex_lock(&mutex[MX_THRESHOLD_COUNTER]);
+    for (i=0; i<thresholders; ++i)
+        sem_post(&semaphore[SEM_RAW_IMAGE]);
+    pthread_mutex_unlock(&mutex[MX_THRESHOLD_COUNTER]);
+
 	printf("Stopping read thread\n");
     return 0;
 }
@@ -699,6 +704,11 @@ void* stageSegmentation(void *arg)
 	segmenters--;
 	pthread_mutex_unlock(&mutex[MX_SEGMENT_COUNTER]);
 
+	pthread_mutex_lock(&mutex[MX_CORRELATE_COUNTER]);
+	for (i=0; i<correlators; ++i)
+		sem_post(&semaphore[SEM_SEGMENT_IMAGE]);
+	pthread_mutex_unlock(&mutex[MX_CORRELATE_COUNTER]);
+
 	printf("Stopping segmentation thread\n");
     return 0;
 }
@@ -782,6 +792,10 @@ void* stageOutput(void *arg)
 {
 	int i;
 	String *out = newEmptyString(64);
+    /* add a dashed line before the first poem */
+    for (i=0; i<20; ++i)
+        appendString(out, '-');
+    appendString(out, '\n');
 
 	while (correlators > 0)
 	{
@@ -795,13 +809,18 @@ void* stageOutput(void *arg)
 		}
 		for (i=0; i<correlatedString->end; ++i)
 			appendString(out, correlatedString->str[i]);
-		out->str[out->end] = '\n';
 		freeString(correlatedString);
 		correlatedAvailable = FALSE;
 		pthread_cond_signal(&cond[COND_OUTPUT_WAITING]);
 		pthread_mutex_unlock(&mutex[MX_CORRELATED_IMAGE]);
+
+        /* add a dashed line at the end of a poem */
+        for (i=0; i<20; ++i)
+            appendString(out, '-');
+        appendString(out, '\n');
+
 	}
-	//printf(out->str);
+	printf(out->str);
 	printf("Done!\n");
 	freeString(out);
 
