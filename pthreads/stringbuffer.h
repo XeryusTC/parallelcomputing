@@ -34,7 +34,6 @@ typedef struct imagestring {
 ImageString newImageString(int size);
 void freeImageString(ImageString imstr);
 void resizeImageString(ImageString imstr);
-ImageString copyImageString(ImageString org);
 void imageStringAppendChar(ImageString imstr, char c);
 void imageStringAppendImage(ImageString imstr, Image im);
 int imageStringNextPosition(ImageString imstr);

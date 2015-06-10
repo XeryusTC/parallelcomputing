@@ -73,12 +73,6 @@ void resizeImageString(ImageString imstr)
 	assert(imstr->im  != NULL);
 }
 
-ImageString copyImageString(ImageString org)
-{
-	ImageString copy = newImageString(org->end);
-	return copy;
-}
-
 void imageStringAppendChar(ImageString imstr, char c)
 {
 	pthread_mutex_lock(&imstr->m);

@@ -629,12 +629,12 @@ void* stageThreshold(void *arg)
 		if (thresholdAvailable)
 			pthread_cond_wait(&cond[COND_SEGMENT_WAITING],
 					&mutex[MX_THRESHOLD_IMAGE]);
+		thresholdAvailable = TRUE;
+		sem_post(&semaphore[SEM_THRESHOLD_IMAGE]);
 		thresholdImage = makeImage(im->width, im->height);
 		memcpy(thresholdImage->imdata[0], im->imdata[0],
 				im->width * im->height * sizeof(int));
 		freeImage(im);
-		thresholdAvailable = TRUE;
-		sem_post(&semaphore[SEM_THRESHOLD_IMAGE]);
 		pthread_mutex_unlock(&mutex[MX_THRESHOLD_IMAGE]);
 	}
 

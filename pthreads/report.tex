@@ -1,0 +1,120 @@
+\documentclass[a4paper]{article}
+
+\usepackage{array}
+\usepackage{fullpage}
+\usepackage{enumerate}
+\usepackage{hyperref}
+\usepackage[all]{hypcap}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{multicol}
+
+\definecolor{light-gray}{gray}{0.95}
+\definecolor{dark-green}{rgb}{0, 0.5, 0}
+\definecolor{dark-gray}{gray}{0.4}
+\definecolor{Gray}{gray}{0.95}
+
+\lstset{ %
+	language = C,                   % choose the language of the code
+	basicstyle = \small\ttfamily,   % the size and fonts that are used
+	frame = single,                 % adds a frame around the code
+	tabsize = 3,                    % sets default tabsize
+	breaklines = true,              % sets automatic line breaking
+	numbers = left,                 % where to put the line-numbers
+	numberstyle = \footnotesize,    % the style of the line-numbers
+	backgroundcolor = \color{Gray}, % the background color of the listing
+	showstringspaces=false,
+	keywordstyle=\color{blue},
+}
+
+\newcolumntype{V}{>{\centering\arraybackslash} m{.75\linewidth} }
+
+\title{Assignment 4: pthreads}
+\author{Jacco Spoelder (s1348493) \and Xeryus Stokkel (s2332795)}
+
+\begin{document}
+
+\maketitle
+
+\section{Exercise 1}
+
+\section{Exercise 2}
+We split the program into stages according to the diagram in the assignment. The first stage reads the images, the second stage thresholds the image, the third stage splits the image into separate characters and creates a string of images out if it, the fourth stage converts the string of images to a regular string through correlation and and the final stage outputs the results of the previous steps.
+
+We use a shared buffer between stages to share the data from one stage to the next stage. Each intermediate step has its own buffer. We devised a way to notify the next stage that the buffer has been filled so it can work on it. We did this in such a way that when for example, there is one thread working on stage 1 and 4 on stage 2 that only one of the threads in stage 2 would work on the data in the buffer so that we don't accidentally duplicate work to be done. This signalling is based on semaphores, a thread signals the next stage that new data is in the buffer is simply done by increasing the semaphore, the receiving end has to make sure that another thread didn't read the data beforehand. The code to do this can be found in \autoref{code:ex2-1}.
+
+\lstinputlisting[label={code:ex2-1}, caption={Code a stage uses to receive the signal that the previous stage has filled the buffer.}, firstline=606, lastline=613]{ocr-ex2.c}
+
+Next the data is copied into a local buffer and the shared buffer is released so that the input stage can fill it again. After this the stage does the core of its work. Finally it waits for the next stage to signal that it has emptied the buffer so that it can safely fill it again without overwriting data. This is shown in \autoref{code:ex2-2} (copying to the shared buffer is not included), the variable \texttt{thresholdAvailable} is set according to whether there is data in the shared buffer.
+
+\lstinputlisting[label={code:ex2-2}, caption={Code a stage uses to signal the next stage that new data is available in the buffer.}, firstline=627, lastline=633]{ocr-ex2.c}
+
+We also wrote a image string datatype. This datatype is basically a string but it allows storing images besides characters. This way we can preserve the order or characters and their relationship to each other. It also allows storing white space which have no associated images. All in all this allows us to keep the structure of the page while not writing to stdout directly like in the start code. The code is in \autoref{code:stringbuffer.h} and \autoref{code:stringbuffer.c} in \autoref{sec:aux}.
+
+In \autoref{tbl:ex2} we show the run time, CPU utilization and speed-up for different number of threads per stage. Stage 1 and 5 always have one thread because they only do I/O and we don't want doing simultaneous I/O influencing our results. From \autoref{tbl:ex2} we can see that only increasing the number of threads used for correlation influences the speed up. From this we can conclude that the main bottleneck of the program is the correlation step, all other steps have to wait for this step to complete before they can do anything else.
+
+It should also be noted that having more threshold and segmentation threads negatively influences the speed-up. This might just be down to variations in run-time but it might also be indicative that the threads of one stage spend more time waiting on each other to fill the buffer and slightly slowing the program down that way.
+
+From the CPU utilization we can see that most threads spend a lot of time waiting for each other with only one thread, only $\approx 1.6$ core is used. When we increase the number of correlation threads we see that the CPU utilization doubles straight away. This means that not only correlation goes faster but that the other stages spend less time waiting around on the correlation stage.
+
+\begin{table}[h]
+	\centering
+	\label{tbl:ex2}
+	\caption{Run times for different number of threads working on certain stages.}
+	\begin{tabular}{r|r|r|r|r|r}
+		\multicolumn{3}{c|}{Number of threads per stage} & \multicolumn{2}{c}{}\\
+		Threshold & Segmentation & Correlation & Time & CPU & Speed-up \\ \hline
+		1 & 1 & 1 & 60.92 & 165\% &  \\
+		1 & 1 & 2 & 31.24 & 322\% & 1.95 \\
+		1 & 1 & 3 & 22.59 & 449\% & 2.70 \\
+		1 & 2 & 1 & 60.50 & 163\% & 1.01 \\
+		1 & 2 & 2 & 31.55 & 322\% & 1.93 \\
+		1 & 2 & 3 & 23.48 & 437\% & 2.59 \\
+		1 & 3 & 1 & 63.04 & 160\% & 0.96 \\
+		1 & 3 & 2 & 31.90 & 319\% & 1.91 \\
+		1 & 3 & 3 & 22.16 & 467\% & 2.75 \\
+		2 & 1 & 1 & 60.11 & 164\% & 1.01 \\
+		2 & 1 & 2 & 30.59 & 326\% & 1.99 \\
+		2 & 1 & 3 & 22.27 & 456\% & 2.74 \\
+		2 & 2 & 1 & 61.38 & 161\% & 0.99 \\
+		2 & 2 & 2 & 26.62 & 342\% & 2.29 \\
+		2 & 2 & 3 & 22.12 & 496\% & 2.75 \\
+		3 & 3 & 1 & 61.69 & 162\% & 0.99 \\
+		3 & 3 & 2 & 27.87 & 334\% & 2.19 \\
+		3 & 3 & 3 & 22.22 & 464\% & 2.74 \\
+	\end{tabular}
+\end{table}
+
+\section{Exercise 3}
+
+\begin{table}
+	\begin{tabular}{r|r|r}
+		Number of threads & Run time & Speed-up \\ \hline
+		 1 &  &  \\
+		 2 &  &  \\
+		 4 &  &  \\
+		 8 &  &  \\
+		12 &  &  \\
+	\end{tabular}
+\end{table}
+
+\clearpage
+\appendix
+\section{Full program code}
+\subsection{Program code exercise 1}
+%\lstinputlisting[label={code:prime1}, caption={Code for prime search by static domain decomposition}]{prime/prime.c}
+
+\subsection{Code for exercise 2}
+
+
+\subsection{Code for exercise 3}
+
+
+\subsection{Program code for auxilary files}\label{sec:aux}
+\lstinputlisting[label={code:queue.h}, caption={Helper code to manage queues}]{queue.h}
+\lstinputlisting[label={code:queue.c}, caption={Helper code to manage queues}]{queue.c}
+\lstinputlisting[label={code:stringbuffer.h}, caption={Helper code to manage queues}]{stringbuffer.h}
+\lstinputlisting[label={code:stringbuffer.c}, caption={Helper code to manage queues}]{stringbuffer.c}
+
+\end{document}

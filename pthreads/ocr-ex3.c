@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-#include <unistd.h>
 #include <pthread.h>
 #include "stringbuffer.h"
 #include "queue.h"
