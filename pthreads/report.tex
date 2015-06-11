@@ -89,13 +89,17 @@ From the CPU utilization we can see that most threads spend a lot of time waitin
 \section{Exercise 3}
 
 \begin{table}
+	\centering
+	\caption{Run times and speed-up for the master/worker model.}
+	\label{tbl:ex3}
 	\begin{tabular}{r|r|r}
 		Number of threads & Run time & Speed-up \\ \hline
-		 1 &  &  \\
-		 2 &  &  \\
-		 4 &  &  \\
-		 8 &  &  \\
-		12 &  &  \\
+		Sequential & 72.13 &  \\
+		 1 & 66.76 & 1.08 \\
+		 2 & 34.61 & 2.08 \\
+		 4 & 20.75 & 3.48 \\
+		 8 & 16.69 & 4.32 \\
+		12 & 16.51 & 4.37 \\
 	\end{tabular}
 \end{table}
 
@@ -106,10 +110,10 @@ From the CPU utilization we can see that most threads spend a lot of time waitin
 %\lstinputlisting[label={code:prime1}, caption={Code for prime search by static domain decomposition}]{prime/prime.c}
 
 \subsection{Code for exercise 2}
-
+\lstinputlisting[label={code:ocr-ex2}, caption={Main code for exercise 2}, firstline=518]{ocr-ex2.c}
 
 \subsection{Code for exercise 3}
-
+\lstinputlisting[label={code:ocr-ex2}, caption={Main code for exercise 3}, firstline=547]{ocr-ex3.c}
 
 \subsection{Program code for auxilary files}\label{sec:aux}
 \lstinputlisting[label={code:queue.h}, caption={Helper code to manage queues}]{queue.h}
