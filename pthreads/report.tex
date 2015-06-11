@@ -58,35 +58,44 @@ It should also be noted that having more threshold and segmentation threads nega
 
 From the CPU utilization we can see that most threads spend a lot of time waiting for each other with only one thread, only $\approx 1.6$ core is used. When we increase the number of correlation threads we see that the CPU utilization doubles straight away. This means that not only correlation goes faster but that the other stages spend less time waiting around on the correlation stage.
 
-\begin{table}[h]
+Doing the work in a pipeline fashion does have some benefit, we can see that with even 1 thread for every stage gives a small speed-up. This means that it can be worthwhile to split a program into different pipeline stages, but it took us a bit of effort to do this in a way that doesn't lead to a program that hangs very often.
+
+\begin{table}[t]
 	\centering
 	\label{tbl:ex2}
 	\caption{Run times for different number of threads working on certain stages.}
 	\begin{tabular}{r|r|r|r|r|r}
 		\multicolumn{3}{c|}{Number of threads per stage} & \multicolumn{2}{c}{}\\
 		Threshold & Segmentation & Correlation & Time & CPU & Speed-up \\ \hline
-		1 & 1 & 1 & 60.92 & 165\% &  \\
-		1 & 1 & 2 & 31.24 & 322\% & 1.95 \\
-		1 & 1 & 3 & 22.59 & 449\% & 2.70 \\
-		1 & 2 & 1 & 60.50 & 163\% & 1.01 \\
-		1 & 2 & 2 & 31.55 & 322\% & 1.93 \\
-		1 & 2 & 3 & 23.48 & 437\% & 2.59 \\
-		1 & 3 & 1 & 63.04 & 160\% & 0.96 \\
-		1 & 3 & 2 & 31.90 & 319\% & 1.91 \\
-		1 & 3 & 3 & 22.16 & 467\% & 2.75 \\
-		2 & 1 & 1 & 60.11 & 164\% & 1.01 \\
-		2 & 1 & 2 & 30.59 & 326\% & 1.99 \\
-		2 & 1 & 3 & 22.27 & 456\% & 2.74 \\
-		2 & 2 & 1 & 61.38 & 161\% & 0.99 \\
-		2 & 2 & 2 & 26.62 & 342\% & 2.29 \\
-		2 & 2 & 3 & 22.12 & 496\% & 2.75 \\
-		3 & 3 & 1 & 61.69 & 162\% & 0.99 \\
-		3 & 3 & 2 & 27.87 & 334\% & 2.19 \\
-		3 & 3 & 3 & 22.22 & 464\% & 2.74 \\
+		\multicolumn{3}{c|}{Sequential} & 72.13 & 100\% & \\ \cline{1-3}
+		1 & 1 & 1 & 60.92 & 165\% & 1.18 \\
+		1 & 1 & 2 & 31.24 & 322\% & 2.31 \\
+		1 & 1 & 3 & 22.59 & 449\% & 3.19 \\
+		1 & 2 & 1 & 60.50 & 163\% & 1.19 \\
+		1 & 2 & 2 & 31.55 & 322\% & 2.29 \\
+		1 & 2 & 3 & 23.48 & 437\% & 3.07 \\
+		1 & 3 & 1 & 63.04 & 160\% & 1.14 \\
+		1 & 3 & 2 & 31.90 & 319\% & 2.26 \\
+		1 & 3 & 3 & 22.16 & 467\% & 3.25 \\
+		2 & 1 & 1 & 60.11 & 164\% & 1.20 \\
+		2 & 1 & 2 & 30.59 & 326\% & 2.36 \\
+		2 & 1 & 3 & 22.27 & 456\% & 3.24 \\
+		2 & 2 & 1 & 61.38 & 161\% & 1.18 \\
+		2 & 2 & 2 & 26.62 & 342\% & 2.71 \\
+		2 & 2 & 3 & 22.12 & 496\% & 3.26 \\
+		3 & 3 & 1 & 61.69 & 162\% & 1.17 \\
+		3 & 3 & 2 & 27.87 & 334\% & 2.59 \\
+		3 & 3 & 3 & 22.22 & 464\% & 3.25 \\
 	\end{tabular}
 \end{table}
 
 \section{Exercise 3}
+
+To split the program into a master/worker model we implemented a queue that holds an image file and the filename that belongs to that image. The main thread fills the queue as long as there are places left in it. Each worker reads the image and filename from the queue and execute the entire processing pipeline. We also store the filename in the queue so that the output is the same as in the vanilla program where the filename precedes the contents of the file.
+
+Run times and speed-up for this model are shown in \autoref{tbl:ex3}, even with one thread there is a small speed-up because the master thread does reading from a file while the single worker thread processes images. Because this is done concurrently there is a slight speed-up. 
+
+We can also see that the maximum achievable speed-up most likely lies at about 4.4 since that value is approached with a large number of threads. The speed-up is most likely limited by the fact that we lock a mutex whenever the something is put on or taken off the queue. We also have a mutex that regulates access to stdout so there is another opportunity for threads to wait for each other. It seems that this strategy doesn't seem really effective because of all this locking. It might be possible to speed the program up a little bit more if adding items to the queue and removing them would use different mutexes.
 
 \begin{table}
 	\centering
